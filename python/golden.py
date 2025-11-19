@@ -48,107 +48,69 @@ SQRT_BINS = np.array(
 )
 
 
-# Block RAM usages
-
-
-# 128 * 128 * 8 = 131072 b = 4 blocks
-ram_input = np.empty((INPUT_Y, INPUT_X), dtype=np.uint8)
-
-# use for both histogram and cdf
-# 4 * 4 * 256 * 8 = 32768 b = 1 block
-ram_hist_mapping = np.empty((CLAHE_PATCH_Y_NUM, CLAHE_PATCH_X_NUM, 256), dtype=np.uint8)
-
-# 96 * 96 * 8 = 173728 b = 2.25 blocks
-ram_clahe_output = np.empty(
-    (INPUT_Y - CLAHE_PATCH_Y, INPUT_X - CLAHE_PATCH_X), dtype=np.uint8
-)
-
-# 4 buffers for hessian to use
-# each 90 * 90 * 16 = 129600 b = 3.96 blocks
-ram_hessian_0 = np.empty(
-    (
-        HESSIAN_OUTPUT_Y,
-        HESSIAN_OUTPUT_X,
-    ),
-    dtype=np.uint16,
-)
-ram_hessian_1 = np.empty(
-    (
-        HESSIAN_OUTPUT_Y,
-        HESSIAN_OUTPUT_X,
-    ),
-    dtype=np.uint16,
-)
-ram_hessian_2 = np.empty(
-    (
-        HESSIAN_OUTPUT_Y,
-        HESSIAN_OUTPUT_X,
-    ),
-    dtype=np.uint16,
-)
-ram_hessian_3 = np.empty(
-    (
-        HESSIAN_OUTPUT_Y,
-        HESSIAN_OUTPUT_X,
-    ),
-    dtype=np.uint16,
-)
-
-
 # Modules
 
 
-def CLAHE_mappings(row, col):
+def CLAHE_mappings(img_in: np.ndarray, hist_mapping_inout: np.ndarray):
     """
-    ram_input -> ram_hist_mapping[row, col]: calculate CLAHE mapping for one patch
+    calculate CLAHE mapping for one patch of input image
     """
+    assert img_in.shape == (CLAHE_PATCH_Y, CLAHE_PATCH_X) and img_in.dtype == np.uint8
+    assert hist_mapping_inout.shape == (256,) and hist_mapping_inout.dtype == np.uint8
 
     # calculate hist
 
     excess = np.uint16(0)
     # instead of such initialization, can also make 256 flags of "has this i been accessed already"
     for i in range(256):
-        ram_hist_mapping[row, col][i] = np.uint8(0)
+        hist_mapping_inout[i] = np.uint8(0)
 
-    y1, y2 = row * CLAHE_PATCH_Y, (row + 1) * CLAHE_PATCH_Y
-    x1, x2 = col * CLAHE_PATCH_X, (col + 1) * CLAHE_PATCH_X
-    # patch = ram_input[y1:y2, x1:x2]
     # for pixel in patch:
-    for y in range(y1, y2):
-        for x in range(x1, x2):
-            pixel = ram_input[y, x]
-            if ram_hist_mapping[row, col][pixel] == CLAHE_CLIP_LIMIT - 2:
+    for y in range(CLAHE_PATCH_Y):
+        for x in range(CLAHE_PATCH_X):
+            pixel = img_in[y, x]
+            if hist_mapping_inout[pixel] == CLAHE_CLIP_LIMIT - 2:
                 excess += 1
             else:
-                ram_hist_mapping[row, col][pixel] += 1
+                hist_mapping_inout[pixel] += 1
 
     redist = excess // 256
     for i in range(256):
-        ram_hist_mapping[row, col][i] += redist
+        hist_mapping_inout[i] += redist
 
     # calculate mapping
 
     s = np.uint32(0)
     for i in range(256):
-        s += ram_hist_mapping[row, col][i]
+        s += hist_mapping_inout[i]
         s_normed = np.uint8(np.clip(s * 256 // CLAHE_PATCH_X // CLAHE_PATCH_Y, 0, 255))
-        ram_hist_mapping[row, col][i] = s_normed
+        hist_mapping_inout[i] = s_normed
 
 
-def CLAHE_output():
+def CLAHE_output(img_in: np.ndarray, mapping_in: np.ndarray, clahe_out: np.ndarray):
     """
-    ram_input | ram_hist_mapping -> ram_clahe_output: create output from mappings
+    create CLAHE output from input image and CLAHE mappings
     """
+    assert img_in.shape == (INPUT_Y, INPUT_X) and img_in.dtype == np.uint8
+    assert (
+        mapping_in.shape == (CLAHE_PATCH_Y_NUM, CLAHE_PATCH_X_NUM, 256)
+        and mapping_in.dtype == np.uint8
+    )
+    assert (
+        clahe_out.shape == (INPUT_Y - CLAHE_PATCH_Y, INPUT_X - CLAHE_PATCH_X)
+        and clahe_out.dtype == np.uint8
+    )
+
     for y in range(INPUT_Y - CLAHE_PATCH_Y):
         for x in range(INPUT_X - CLAHE_PATCH_X):
             cur_row = y // CLAHE_PATCH_Y
             cur_col = x // CLAHE_PATCH_X
 
-            pixel = ram_input[y + CLAHE_PATCH_Y // 2, x + CLAHE_PATCH_X // 2]
-            tl = ram_hist_mapping[cur_row, cur_col][pixel]
-            tr = ram_hist_mapping[cur_row, cur_col + 1][pixel]
-            bl = ram_hist_mapping[cur_row + 1, cur_col][pixel]
-            br = ram_hist_mapping[cur_row + 1, cur_col + 1][pixel]
+            pixel = img_in[y + CLAHE_PATCH_Y // 2, x + CLAHE_PATCH_X // 2]
+            tl = mapping_in[cur_row, cur_col][pixel]
+            tr = mapping_in[cur_row, cur_col + 1][pixel]
+            bl = mapping_in[cur_row + 1, cur_col][pixel]
+            br = mapping_in[cur_row + 1, cur_col + 1][pixel]
 
             dx = np.uint32(x % CLAHE_PATCH_X)
             dx_n = np.uint32(CLAHE_PATCH_X - 1 - dx)
@@ -160,76 +122,157 @@ def CLAHE_output():
                 // CLAHE_PATCH_Y
             )
 
-            ram_clahe_output[y, x] = np.uint8(interp)
+            clahe_out[y, x] = np.uint8(interp)
 
 
-def hessian_conv_r():
+def hessian_conv_r(clahe_in: np.ndarray, conv_r_out: np.ndarray):
     """
-    ram_clahe_output -> ram_hessian_0: convolve along rows
+    convolve CLAHE output along rows
+
     NON-parametrizable code! dependent on the fact that the kernel is [0, 1, 1, 1, 1, 1, 0]
     """
+    assert (
+        clahe_in.shape == (HESSIAN_INPUT_Y, HESSIAN_INPUT_X)
+        and clahe_in.dtype == np.uint8
+    )
+    assert (
+        conv_r_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_r_out.dtype == np.uint16
+    )
+
     window = np.empty(5, dtype=np.uint16)
     for row in range(HESSIAN_RADIUS, HESSIAN_INPUT_Y - HESSIAN_RADIUS):
-        window[0:5] = ram_clahe_output[row][1:6]
+        window[0:5] = clahe_in[row][1:6]
         for col in range(HESSIAN_RADIUS, HESSIAN_INPUT_X - HESSIAN_RADIUS):
-            ram_hessian_0[row - HESSIAN_RADIUS][col - HESSIAN_RADIUS] = np.sum(window)
+            conv_r_out[row - HESSIAN_RADIUS][col - HESSIAN_RADIUS] = np.sum(window)
             # shift
             window[0:4] = window[1:5]
-            window[4] = ram_clahe_output[row][col + 3]
+            window[4] = clahe_in[row][col + 3]
 
 
-def hessian_conv_c():
+def hessian_conv_c(conv_r_in: np.ndarray, conv_out: np.ndarray):
     """
-    ram_hessian_0 -> ram_hessian_1: convolve along cols
+    convolve row convolution result along columns
+
     NON-parametrizable code! dependent on the fact that the kernel is [0, 1, 1, 1, 1, 1, 0]
     """
+    assert (
+        conv_r_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_r_in.dtype == np.uint16
+    )
+    assert (
+        conv_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_out.dtype == np.uint16
+    )
+
     window = np.empty(5, dtype=np.uint16)
     for col in range(HESSIAN_OUTPUT_X):
         # for ram buffer to fit in 2x 32 kb blocks, top rows and bottom rows of conv_x output are missing
         # pad by border
         window[0:5] = np.array(
             [
-                ram_hessian_0[0][0],
-                ram_hessian_0[0][0],
-                ram_hessian_0[0][0],
-                ram_hessian_0[1][0],
-                ram_hessian_0[2][0],
+                conv_r_in[0][0],
+                conv_r_in[0][0],
+                conv_r_in[0][0],
+                conv_r_in[1][0],
+                conv_r_in[2][0],
             ]
         )
         for row in range(HESSIAN_OUTPUT_Y):
-            ram_hessian_1[row][col] = np.sum(window)
+            conv_out[row][col] = np.sum(window)
             # shift
             window[0:4] = window[1:5]
             if row + 3 >= HESSIAN_OUTPUT_Y:
                 window[4] = window[3]
             else:
-                window[4] = ram_hessian_0[row + 3][col]
+                window[4] = conv_r_in[row + 3][col]
 
 
-def hessian_grad_first():
+def hessian_grad_first(conv_in: np.ndarray, gr_out: np.ndarray, gc_out: np.ndarray):
     """
-    ram_hessian_1 (input) -> ram_hessian_0 (gr) | ram_hessian_2 (gc): gradients along rows | cols
+    compute gradient along rows and along columns from convolution result
     """
+    assert (
+        conv_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_in.dtype == np.uint16
+    )
+    assert (
+        gr_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gr_out.dtype == np.uint16
+    )
+    assert (
+        gc_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gc_out.dtype == np.uint16
+    )
 
 
-def hessian_grad_rr_cc():
+def hessian_grad_rr_cc(
+    gr_in: np.ndarray,
+    gc_in: np.ndarray,
+    rr_p_cc_term_out: np.ndarray,
+    rr_m_cc_term_out: np.ndarray,
+):
     """
-    ram_hessian_0 (gr) | ram_hessian_2 (gc) -> ram_hessian_1 | ram_hessian_3: Hrr + Hcc / 2 / 4 | (Hrr - Hcc) ** 2 / 4 / 4
+    compute (Hrr + Hcc) / 2 / 4 and (Hrr - Hcc) ** 2 / 4 / 4 from gr and gc
     """
+    assert (
+        gr_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gr_in.dtype == np.uint16
+    )
+    assert (
+        gc_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gc_in.dtype == np.uint16
+    )
+    assert (
+        rr_p_cc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rr_p_cc_term_out.dtype == np.uint16
+    )
+    assert (
+        rr_m_cc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rr_m_cc_term_out.dtype == np.uint16
+    )
 
 
-def hessian_grad_rc():
+def hessian_grad_rc(gr_in: np.ndarray, rc_term_out: np.ndarray):
     """
-    ram_hessian_0 (gr) -> ram_hessian_2: Hrc ** 2 / 4
+    compute Hrc ** 2 / 4 from gr
     """
+    assert (
+        gr_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gr_in.dtype == np.uint16
+    )
+    assert (
+        rc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rc_term_out.dtype == np.uint16
+    )
 
 
-def hessian_output():
+def hessian_output(
+    rr_p_cc_term_in: np.ndarray,
+    rr_m_cc_term_in: np.ndarray,
+    rc_term_in: np.ndarray,
+    hessian_out: np.ndarray,
+):
     """
-    ram_hessian_1 | 2 | 3 -> ram_hessian_0: abs(
+    calculate abs(
     (Hrr + Hcc) / 2 / 4 + sqrt_quant(Hrc ** 2 / 4 + (Hrr - Hcc) ** 2 / 4 / 4 + 1)
     ) * scaling (default * 64 // HESSIAN_KERNEL_SCALE ** 2)
+
+    given ((Hrr + Hcc) / 2 / 4), ((Hrr - Hcc) ** 2 / 4 / 4) and (Hrc ** 2 / 4)
     """
+    assert (
+        rr_p_cc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rr_p_cc_term_in.dtype == np.uint16
+    )
+    assert (
+        rr_m_cc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rr_m_cc_term_in.dtype == np.uint16
+    )
+    assert (
+        rc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and rc_term_in.dtype == np.uint16
+    )
+    assert (
+        hessian_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and hessian_out.dtype == np.uint16
+    )
 
 
 # Testbench
@@ -257,18 +300,75 @@ def load_test_input() -> np.ndarray:
 
 
 if __name__ == "__main__":
+    # Block RAM usages
+
+    # 128 * 128 * 8 = 131072 b = 4 blocks
+    ram_input = np.empty((INPUT_Y, INPUT_X), dtype=np.uint8)
+
+    # use for both histogram and cdf
+    # 4 * 4 * 256 * 8 = 32768 b = 1 block
+    ram_hist_mapping = np.empty(
+        (CLAHE_PATCH_Y_NUM, CLAHE_PATCH_X_NUM, 256), dtype=np.uint8
+    )
+
+    # 96 * 96 * 8 = 173728 b = 2.25 blocks
+    ram_clahe_output = np.empty(
+        (INPUT_Y - CLAHE_PATCH_Y, INPUT_X - CLAHE_PATCH_X), dtype=np.uint8
+    )
+
+    # 4 buffers for hessian to use
+    # each 90 * 90 * 16 = 129600 b = 3.96 blocks
+    ram_hessian_0 = np.empty(
+        (
+            HESSIAN_OUTPUT_Y,
+            HESSIAN_OUTPUT_X,
+        ),
+        dtype=np.uint16,
+    )
+    ram_hessian_1 = np.empty(
+        (
+            HESSIAN_OUTPUT_Y,
+            HESSIAN_OUTPUT_X,
+        ),
+        dtype=np.uint16,
+    )
+    ram_hessian_2 = np.empty(
+        (
+            HESSIAN_OUTPUT_Y,
+            HESSIAN_OUTPUT_X,
+        ),
+        dtype=np.uint16,
+    )
+    ram_hessian_3 = np.empty(
+        (
+            HESSIAN_OUTPUT_Y,
+            HESSIAN_OUTPUT_X,
+        ),
+        dtype=np.uint16,
+    )
+
+    # module instantiations
+
     ram_input = load_test_input()
 
     for row in range(CLAHE_PATCH_Y_NUM):
         for col in range(CLAHE_PATCH_X_NUM):
-            CLAHE_mappings(row, col)
-    CLAHE_output()
-    hessian_conv_r()
-    hessian_conv_c()
-    hessian_grad_first()
-    hessian_grad_rr_cc()
-    hessian_grad_rc()
-    hessian_output()
+            CLAHE_mappings(
+                ram_input[
+                    row * CLAHE_PATCH_Y : (row + 1) * CLAHE_PATCH_Y,
+                    col * CLAHE_PATCH_X : (col + 1) * CLAHE_PATCH_X,
+                ],
+                ram_hist_mapping[row][col],
+            )
+    CLAHE_output(ram_input, ram_hist_mapping, ram_clahe_output)
+    hessian_conv_r(ram_clahe_output, ram_hessian_0)
+    hessian_conv_c(ram_hessian_0, ram_hessian_1)
+    hessian_grad_first(ram_hessian_1, ram_hessian_0, ram_hessian_2)
+    hessian_grad_rr_cc(ram_hessian_0, ram_hessian_2, ram_hessian_1, ram_hessian_3)
+    hessian_grad_rc(ram_hessian_0, ram_hessian_2)
+    hessian_output(ram_hessian_1, ram_hessian_3, ram_hessian_2, ram_hessian_0)
+
+    # check outputs
 
     plt.subplot(2, 2, 1)
     plt.title("Input")
