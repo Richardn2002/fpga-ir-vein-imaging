@@ -1,0 +1,5 @@
+[libraries]
+
+unisim.files = ["/opt/Xilinx/2025.1/data/vhdl/src/unisims/unisim_VCOMP.vhd"]
+
+proj.files = ["HDL/VHDL/**/*.vhd"]
