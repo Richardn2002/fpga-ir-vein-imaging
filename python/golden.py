@@ -27,13 +27,13 @@ HESSIAN_RADIUS = 3
 HESSIAN_OUTPUT_X = HESSIAN_INPUT_X - 2 * HESSIAN_RADIUS
 HESSIAN_OUTPUT_Y = HESSIAN_INPUT_Y - 2 * HESSIAN_RADIUS
 
+HESSIAN_KERNEL_SCALE = 4
 """
 def gaussian_kernel(sigma, radius):
     x = np.arange(-radius, radius + 1)
     kernel = np.exp(-x**2 / (2 * sigma**2))
     return kernel / np.sum(kernel)
 HESSIAN_KERNEL = gaussian_kernel(HESSIAN_SIGMA, HESSIAN_RADIUS)
-HESSIAN_KERNEL_SCALE = 4
 HESSIAN_KERNEL = np.round(HESSIAN_KERNEL * HESSIAN_KERNEL_SCALE).astype(np.int16)
 """
 HESSIAN_KERNEL = np.array([0, 1, 1, 1, 1, 1, 0], dtype=np.uint8)
@@ -137,10 +137,10 @@ def hessian_conv_r(clahe_in: np.ndarray, conv_r_out: np.ndarray):
     )
     assert (
         conv_r_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and conv_r_out.dtype == np.uint16
+        and conv_r_out.dtype == np.int16
     )
 
-    window = np.empty(5, dtype=np.uint16)
+    window = np.empty(5, dtype=np.int16)
     for row in range(HESSIAN_RADIUS, HESSIAN_INPUT_Y - HESSIAN_RADIUS):
         window[0:5] = clahe_in[row][1:6]
         for col in range(HESSIAN_RADIUS, HESSIAN_INPUT_X - HESSIAN_RADIUS):
@@ -158,14 +158,14 @@ def hessian_conv_c(conv_r_in: np.ndarray, conv_out: np.ndarray):
     """
     assert (
         conv_r_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and conv_r_in.dtype == np.uint16
+        and conv_r_in.dtype == np.int16
     )
     assert (
         conv_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and conv_out.dtype == np.uint16
+        and conv_out.dtype == np.int16
     )
 
-    window = np.empty(5, dtype=np.uint16)
+    window = np.empty(5, dtype=np.int16)
     for col in range(HESSIAN_OUTPUT_X):
         # for ram buffer to fit in 2x 32 kb blocks, top rows and bottom rows of conv_x output are missing
         # pad by border
@@ -188,27 +188,81 @@ def hessian_conv_c(conv_r_in: np.ndarray, conv_out: np.ndarray):
                 window[4] = conv_r_in[row + 3][col]
 
 
-def hessian_grad_first(conv_in: np.ndarray, gr_out: np.ndarray, gc_out: np.ndarray):
+def hessian_grad_r(
+    conv_in_0: np.ndarray,
+    conv_in_1: np.ndarray,
+    gr_out: np.ndarray,
+):
     """
-    compute gradient along rows and along columns from convolution result
+    compute gradient along rows from convolution result
     """
     assert (
-        conv_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and conv_in.dtype == np.uint16
+        conv_in_0.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_in_0.dtype == np.int16
+    )
+    assert (
+        conv_in_1.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_in_1.dtype == np.int16
     )
     assert (
         gr_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and gr_out.dtype == np.uint16
+        and gr_out.dtype == np.int16
+    )
+
+    for y in range(HESSIAN_OUTPUT_Y):
+        for x in range(HESSIAN_OUTPUT_X):
+            gr = 0
+            if y == 0:
+                gr = (conv_in_1[1][x] - conv_in_0[0][x]) * 2
+            elif y == HESSIAN_OUTPUT_Y - 1:
+                gr = (
+                    conv_in_1[HESSIAN_OUTPUT_Y - 1][x]
+                    - conv_in_0[HESSIAN_OUTPUT_Y - 2][x]
+                ) * 2
+            else:
+                gr = conv_in_1[y + 1][x] - conv_in_0[y - 1][x]
+
+            gr_out[y][x] = gr
+
+
+def hessian_grad_c(conv_in_0: np.ndarray, conv_in_1: np.ndarray, gc_out: np.ndarray):
+    """
+    compute gradient along columns from convolution result
+    """
+    assert (
+        conv_in_0.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_in_0.dtype == np.int16
+    )
+    assert (
+        conv_in_1.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and conv_in_1.dtype == np.int16
     )
     assert (
         gc_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and gc_out.dtype == np.uint16
+        and gc_out.dtype == np.int16
     )
+
+    for y in range(HESSIAN_OUTPUT_Y):
+        for x in range(HESSIAN_OUTPUT_X):
+            gc = 0
+            if x == 0:
+                gc = (conv_in_1[y][1] - conv_in_0[y][0]) * 2
+            elif x == HESSIAN_OUTPUT_X - 1:
+                gc = (
+                    conv_in_1[y][HESSIAN_OUTPUT_X - 1]
+                    - conv_in_0[y][HESSIAN_OUTPUT_X - 2]
+                ) * 2
+            else:
+                gc = conv_in_1[y][x + 1] - conv_in_0[y][x - 1]
+
+            gc_out[y][x] = gc
 
 
 def hessian_grad_rr_cc(
-    gr_in: np.ndarray,
-    gc_in: np.ndarray,
+    gr_in_0: np.ndarray,
+    gr_in_1: np.ndarray,
+    gc_in_0: np.ndarray,
+    gc_in_1: np.ndarray,
     rr_p_cc_term_out: np.ndarray,
     rr_m_cc_term_out: np.ndarray,
 ):
@@ -216,38 +270,101 @@ def hessian_grad_rr_cc(
     compute (Hrr + Hcc) / 2 / 4 and (Hrr - Hcc) ** 2 / 4 / 4 from gr and gc
     """
     assert (
-        gr_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gr_in.dtype == np.uint16
+        gr_in_0.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gr_in_0.dtype == np.int16
     )
     assert (
-        gc_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gc_in.dtype == np.uint16
+        gr_in_1.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gr_in_1.dtype == np.int16
+    )
+    assert (
+        gc_in_0.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gc_in_0.dtype == np.int16
+    )
+    assert (
+        gc_in_1.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
+        and gc_in_1.dtype == np.int16
     )
     assert (
         rr_p_cc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rr_p_cc_term_out.dtype == np.uint16
+        and rr_p_cc_term_out.dtype == np.int16
     )
     assert (
         rr_m_cc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rr_m_cc_term_out.dtype == np.uint16
+        and rr_m_cc_term_out.dtype == np.int16
     )
 
+    for y in range(HESSIAN_OUTPUT_Y):
+        for x in range(HESSIAN_OUTPUT_X):
+            hrr = 0
+            if y == 0:
+                hrr = (gr_in_1[1][x] - gr_in_0[0][x]) * 2
+            elif y == HESSIAN_OUTPUT_Y - 1:
+                hrr = (
+                    gr_in_1[HESSIAN_OUTPUT_Y - 1][x] - gr_in_0[HESSIAN_OUTPUT_Y - 2][x]
+                ) * 2
+            else:
+                hrr = gr_in_1[y + 1][x] - gr_in_0[y - 1][x]
 
-def hessian_grad_rc(gr_in: np.ndarray, rc_term_out: np.ndarray):
+            hcc = 0
+            if x == 0:
+                hcc = (gc_in_1[y][1] - gc_in_0[y][0]) * 2
+            elif x == HESSIAN_OUTPUT_X - 1:
+                hcc = (
+                    gc_in_1[y][HESSIAN_OUTPUT_X - 1] - gc_in_0[y][HESSIAN_OUTPUT_X - 2]
+                ) * 2
+            else:
+                hcc = gc_in_1[y][x + 1] - gc_in_0[y][x - 1]
+
+            rr_p_cc_term_out[y][x] = (hrr + hcc) // 2 // 4
+            rr_m_cc_term_out[y][x] = np.int16((np.int32(hrr - hcc) ** 2) // 4 // 4)
+
+
+def sqrt_quant(v: np.int16) -> np.int16:
     """
-    compute Hrc ** 2 / 4 from gr
+    quantized sqrt, output [0, 16]
     """
-    assert (
-        gr_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and gr_in.dtype == np.uint16
-    )
-    assert (
-        rc_term_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rc_term_out.dtype == np.uint16
-    )
+
+    if v <= SQRT_BINS[0]:
+        return np.int16(0)
+    elif v <= SQRT_BINS[1]:
+        return np.int16(1)
+    elif v <= SQRT_BINS[2]:
+        return np.int16(2)
+    elif v <= SQRT_BINS[3]:
+        return np.int16(3)
+    elif v <= SQRT_BINS[4]:
+        return np.int16(4)
+    elif v <= SQRT_BINS[5]:
+        return np.int16(5)
+    elif v <= SQRT_BINS[6]:
+        return np.int16(6)
+    elif v <= SQRT_BINS[7]:
+        return np.int16(7)
+    elif v <= SQRT_BINS[8]:
+        return np.int16(8)
+    elif v <= SQRT_BINS[9]:
+        return np.int16(9)
+    elif v <= SQRT_BINS[10]:
+        return np.int16(10)
+    elif v <= SQRT_BINS[11]:
+        return np.int16(11)
+    elif v <= SQRT_BINS[12]:
+        return np.int16(12)
+    elif v <= SQRT_BINS[13]:
+        return np.int16(13)
+    elif v <= SQRT_BINS[14]:
+        return np.int16(14)
+    elif v <= SQRT_BINS[15]:
+        return np.int16(15)
+    else:
+        return np.int16(16)
 
 
 def hessian_output(
     rr_p_cc_term_in: np.ndarray,
     rr_m_cc_term_in: np.ndarray,
-    rc_term_in: np.ndarray,
+    rc_in: np.ndarray,
     hessian_out: np.ndarray,
 ):
     """
@@ -255,24 +372,39 @@ def hessian_output(
     (Hrr + Hcc) / 2 / 4 + sqrt_quant(Hrc ** 2 / 4 + (Hrr - Hcc) ** 2 / 4 / 4 + 1)
     ) * scaling (default * 64 // HESSIAN_KERNEL_SCALE ** 2)
 
-    given ((Hrr + Hcc) / 2 / 4), ((Hrr - Hcc) ** 2 / 4 / 4) and (Hrc ** 2 / 4)
+    given ((Hrr + Hcc) / 2 / 4), ((Hrr - Hcc) ** 2 / 4 / 4) and Hrc
     """
     assert (
         rr_p_cc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rr_p_cc_term_in.dtype == np.uint16
+        and rr_p_cc_term_in.dtype == np.int16
     )
     assert (
         rr_m_cc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rr_m_cc_term_in.dtype == np.uint16
+        and rr_m_cc_term_in.dtype == np.int16
     )
     assert (
-        rc_term_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and rc_term_in.dtype == np.uint16
+        rc_in.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X) and rc_in.dtype == np.int16
     )
     assert (
         hessian_out.shape == (HESSIAN_OUTPUT_Y, HESSIAN_OUTPUT_X)
-        and hessian_out.dtype == np.uint16
+        and hessian_out.dtype == np.int16
     )
+
+    for y in range(HESSIAN_OUTPUT_Y):
+        for x in range(HESSIAN_OUTPUT_X):
+            out = (
+                (
+                    rr_p_cc_term_in[y][x]
+                    + sqrt_quant(
+                        np.int16(np.int32(rc_in[y][x]) ** 2 // 4)
+                        + rr_m_cc_term_in[y][x]
+                        + 1
+                    )
+                )
+                * 64
+                // (HESSIAN_KERNEL_SCALE**2)
+            )
+            hessian_out[y][x] = out if out > 0 else -out
 
 
 # Testbench
@@ -323,31 +455,31 @@ if __name__ == "__main__":
             HESSIAN_OUTPUT_Y,
             HESSIAN_OUTPUT_X,
         ),
-        dtype=np.uint16,
+        dtype=np.int16,
     )
     ram_hessian_1 = np.empty(
         (
             HESSIAN_OUTPUT_Y,
             HESSIAN_OUTPUT_X,
         ),
-        dtype=np.uint16,
+        dtype=np.int16,
     )
     ram_hessian_2 = np.empty(
         (
             HESSIAN_OUTPUT_Y,
             HESSIAN_OUTPUT_X,
         ),
-        dtype=np.uint16,
+        dtype=np.int16,
     )
     ram_hessian_3 = np.empty(
         (
             HESSIAN_OUTPUT_Y,
             HESSIAN_OUTPUT_X,
         ),
-        dtype=np.uint16,
+        dtype=np.int16,
     )
 
-    # module instantiations
+    # module instantiations and visual checks
 
     ram_input = load_test_input()
 
@@ -363,29 +495,64 @@ if __name__ == "__main__":
     CLAHE_output(ram_input, ram_hist_mapping, ram_clahe_output)
     hessian_conv_r(ram_clahe_output, ram_hessian_0)
     hessian_conv_c(ram_hessian_0, ram_hessian_1)
-    hessian_grad_first(ram_hessian_1, ram_hessian_0, ram_hessian_2)
-    hessian_grad_rr_cc(ram_hessian_0, ram_hessian_2, ram_hessian_1, ram_hessian_3)
-    hessian_grad_rc(ram_hessian_0, ram_hessian_2)
-    hessian_output(ram_hessian_1, ram_hessian_3, ram_hessian_2, ram_hessian_0)
 
-    # check outputs
-
-    plt.subplot(2, 2, 1)
+    plt.subplot(3, 3, 1)
     plt.title("Input")
     plt.imshow(ram_input, cmap="gray")
     plt.axis("off")
 
-    plt.subplot(2, 2, 2)
+    plt.subplot(3, 3, 2)
     plt.title("After CLAHE")
     plt.imshow(ram_clahe_output, cmap="gray")
     plt.axis("off")
 
-    plt.subplot(2, 2, 3)
+    plt.subplot(3, 3, 3)
     plt.title("After Hessian (Conv)")
     plt.imshow(ram_hessian_1, cmap="gray")
     plt.axis("off")
 
-    plt.subplot(2, 2, 4)
+    hessian_grad_r(ram_hessian_1, ram_hessian_1, ram_hessian_0)
+    hessian_grad_c(ram_hessian_1, ram_hessian_1, ram_hessian_2)
+
+    plt.subplot(3, 3, 4)
+    plt.title("gr")
+    plt.imshow(ram_hessian_0, cmap="gray")
+    plt.axis("off")
+
+    plt.subplot(3, 3, 5)
+    plt.title("gc")
+    plt.imshow(ram_hessian_2, cmap="gray")
+    plt.axis("off")
+
+    hessian_grad_rr_cc(
+        ram_hessian_0,
+        ram_hessian_0,
+        ram_hessian_2,
+        ram_hessian_2,
+        ram_hessian_1,
+        ram_hessian_3,
+    )
+
+    plt.subplot(3, 3, 6)
+    plt.title("(Hrr + Hcc) / 2 / 4")
+    plt.imshow(ram_hessian_1, cmap="gray")
+    plt.axis("off")
+
+    plt.subplot(3, 3, 7)
+    plt.title("(Hrr - Hcc) ** 2 / 4 / 4")
+    plt.imshow(ram_hessian_3, cmap="gray")
+    plt.axis("off")
+
+    hessian_grad_c(ram_hessian_0, ram_hessian_0, ram_hessian_2)
+
+    plt.subplot(3, 3, 8)
+    plt.title("Hrc")
+    plt.imshow(ram_hessian_2, cmap="gray")
+    plt.axis("off")
+
+    hessian_output(ram_hessian_1, ram_hessian_3, ram_hessian_2, ram_hessian_0)
+
+    plt.subplot(3, 3, 9)
     plt.title("After Hessian")
     plt.imshow(ram_hessian_0, cmap="gray")
     plt.axis("off")
