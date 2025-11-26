@@ -24,17 +24,16 @@ def read_frame(filename, width, height):
     return array
 
 
-def display_yuyv_frame(yuyv_array, width, height):
-    """
-    Converts a YUYV numpy array to a BGR image for display with OpenCV.
+def display_yuyv_frame(yuyv_array, width, height, byte_reverse: bool):
+    if byte_reverse:
+        odd_bytes = yuyv_array[1::2].copy()
+        even_bytes = yuyv_array[::2].copy()
 
-    Args:
-        yuyv_array (numpy.ndarray): The raw YUYV data.
-        width (int): The width of the frame.
-        height (int): The height of the frame.
-    """
-    # Reshape the array to the correct dimensions for OpenCV YUYV conversion
-    # OpenCV expects the data to be in a specific matrix layout for conversion
+        swapped_array = np.zeros_like(yuyv_array)
+        swapped_array[1::2] = even_bytes
+        swapped_array[::2] = odd_bytes
+
+        yuyv_array = swapped_array
     yuyv_shaped = yuyv_array.reshape((height, width, 2))
 
     # Convert from YUYV to BGR (OpenCV's default color space)
@@ -80,14 +79,15 @@ def display_rgb565_frame(frame, width, height):
     cv2.destroyAllWindows()
 
 
-if len(sys.argv) < 4:
-    print("Usage: python image-view.py <data file> <width> <height>")
+if len(sys.argv) < 5:
+    print("Usage: python image-view.py <data file> <width> <height> <byte reverse 0|1>")
     sys.exit(-1)
 
 filename = sys.argv[1]
 width = int(sys.argv[2])
 height = int(sys.argv[3])
+byte_reverse = bool(int(sys.argv[4]))
 
 frame = read_frame(filename, width, height)
 # display_rgb565_frame(frame, width, height)
-display_yuyv_frame(frame, width, height)
+display_yuyv_frame(frame, width, height, byte_reverse)
