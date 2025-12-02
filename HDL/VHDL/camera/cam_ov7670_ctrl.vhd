@@ -19,12 +19,13 @@ ENTITY cam_ov7670_ctrl IS
 END ENTITY;
 
 ARCHITECTURE arch OF cam_ov7670_ctrl IS
-    TYPE s_type IS (START, START_DELAY, REG_RST, REG_RST_WAIT, CONFIG, DONE);
+    TYPE s_type IS (START, START_DELAY, REG_RST, REG_RST_WAIT, CONFIG, CONFIG_WAIT, DONE);
     SIGNAL s : s_type := START;
     SIGNAL s_next : s_type;
 
     -- delay counter
     CONSTANT TICKS_1_MS : NATURAL := 12000;
+    CONSTANT TICKS_2_US : NATURAL := 24;
     --- resets on 0, increments on 1
     SIGNAL delay_cnt_en : NATURAL RANGE 0 TO 1;
     SIGNAL delay_cnt : NATURAL RANGE 0 TO TICKS_1_MS - 1;
@@ -99,7 +100,6 @@ BEGIN
         CASE s IS
             WHEN START =>
                 s_next <= START_DELAY;
-                delay_cnt_en <= 1;
             WHEN START_DELAY =>
                 delay_cnt_en <= 1;
                 IF delay_cnt = TICKS_1_MS - 1 THEN
@@ -109,7 +109,6 @@ BEGIN
             WHEN REG_RST =>
                 IF i2c_rdy = '1' THEN
                     s_next <= REG_RST_WAIT;
-                    delay_cnt_en <= 1;
                 ELSIF i2c_err = '1' THEN
                     s_next <= START;
                 END IF;
@@ -125,11 +124,17 @@ BEGIN
                     IF config_cnt = NUM_CONFIG - 1 THEN
                         s_next <= DONE;
                     ELSE
-                        config_cnt_next <= config_cnt + 1;
-                        i2c_trg <= '1';
+                        s_next <= CONFIG_WAIT;
                     END IF;
                 ELSIF i2c_err = '1' THEN
                     s_next <= START;
+                END IF;
+            WHEN CONFIG_WAIT =>
+                delay_cnt_en <= 1;
+                IF delay_cnt = TICKS_2_US - 1 THEN
+                    s_next <= CONFIG;
+                    config_cnt_next <= config_cnt + 1;
+                    i2c_trg <= '1';
                 END IF;
             WHEN DONE => NULL;
         END CASE;
