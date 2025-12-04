@@ -6,14 +6,17 @@ USE UNISIM.vcomponents.ALL;
 ENTITY cmt IS
 	PORT (
 		sysclk : IN STD_LOGIC; -- 12 MHz sysclk
-		cam_xclk : OUT STD_LOGIC -- 24 MHz clock input to camera
+		cam_xclk : OUT STD_LOGIC; -- 24 MHz clock input to camera
+		cam_ctrl_clk : OUT STD_LOGIC; -- 12 MHz clock input to camera control
+		vga_clk : OUT STD_LOGIC; -- 25.153 MHz clock input to VGA module
+		core_clk : OUT STD_LOGIC -- 240 MHz core clock
 	);
 END cmt;
 
 ARCHITECTURE arch OF cmt IS
 	SIGNAL clk_fb : STD_LOGIC;
 BEGIN
-	-- This module generates 624 MHz VCO from 12 MHz input clock,
+	-- This module generates 720 MHz VCO from 12 MHz input clock,
 	-- then divides into all clocks the whole system uses
 	--
 	-- Ffbo = Fclkin / DIVCLK_DIVIDE = Fvco / CLKFBOUT_MULT_F
@@ -21,28 +24,28 @@ BEGIN
 	-- So:
 	-- Fvco = Fclkin * CLKFBOUT_MULT_F / DIVCLK_DIVIDE
 	--
-	-- CLKFBOUT_MULT_F = 52.0
+	-- CLKFBOUT_MULT_F = 60.0
 	-- DIVCLK_DIVIDE = 1.0
 	--
 	cmt : MMCME2_BASE GENERIC MAP(
 		-- Jitter programming (OPTIMIZED, HIGH, LOW)
 		BANDWIDTH => "OPTIMIZED",
 		-- Multiply value for all CLKOUT (2.000-64.000).
-		-- VCO 624 MHz -> CLKFBOUT -> CLKFBIN 12 MHz
-		CLKFBOUT_MULT_F => 52.0,
+		-- VCO 720 MHz -> CLKFBOUT -> CLKFBIN 12 MHz
+		CLKFBOUT_MULT_F => 60.0,
 		-- Phase offset in degrees of CLKFB (-360.000-360.000).
 		CLKFBOUT_PHASE => 0.0,
 		-- Input clock period in ns to ps resolution (i.e. 33.333 is 30 MHz).
 		CLKIN1_PERIOD => 83.333,
 		-- Divide amount for each CLKOUT (1-128)
-		CLKOUT1_DIVIDE => 26, -- 624 / 26 = 24 to camera
-		CLKOUT2_DIVIDE => 1,
-		CLKOUT3_DIVIDE => 1,
+		CLKOUT1_DIVIDE => 30, -- 720 / 30 = 24 to camera
+		CLKOUT2_DIVIDE => 60, -- 720 / 60 = 12 to camera control
+		CLKOUT3_DIVIDE => 3, -- 720 / 3 = 240 to core
 		CLKOUT4_DIVIDE => 1,
 		CLKOUT5_DIVIDE => 1,
 		CLKOUT6_DIVIDE => 1,
 		-- Divide amount for CLKOUT0 (1.000-128.000):
-		CLKOUT0_DIVIDE_F => 1.0,
+		CLKOUT0_DIVIDE_F => 28.625, -- 720 / 28.625 = 25.153 MHz pixel clock to VGA
 		-- Duty cycle for each CLKOUT (0.01-0.99):
 		CLKOUT0_DUTY_CYCLE => 0.5,
 		CLKOUT1_DUTY_CYCLE => 0.5,
@@ -70,13 +73,13 @@ BEGIN
 		STARTUP_WAIT => FALSE
 		) PORT MAP (
 		-- User Configurable Clock Outputs:
-		CLKOUT0 => OPEN, -- 1-bit output: CLKOUT0
+		CLKOUT0 => vga_clk, -- 1-bit output: CLKOUT0
 		CLKOUT0B => OPEN, -- 1-bit output: Inverted CLKOUT0
 		CLKOUT1 => cam_xclk, -- 1-bit output: CLKOUT1
 		CLKOUT1B => OPEN, -- 1-bit output: Inverted CLKOUT1
-		CLKOUT2 => OPEN, -- 1-bit output: CLKOUT2
+		CLKOUT2 => cam_ctrl_clk, -- 1-bit output: CLKOUT2
 		CLKOUT2B => OPEN, -- 1-bit output: Inverted CLKOUT2
-		CLKOUT3 => OPEN, -- 1-bit output: CLKOUT3
+		CLKOUT3 => core_clk, -- 1-bit output: CLKOUT3
 		CLKOUT3B => OPEN, -- 1-bit output: Inverted CLKOUT3
 		CLKOUT4 => OPEN, -- 1-bit output: CLKOUT4
 		CLKOUT5 => OPEN, -- 1-bit output: CLKOUT5
