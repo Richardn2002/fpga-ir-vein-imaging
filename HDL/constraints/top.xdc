@@ -29,5 +29,5 @@ set_property -dict { PACKAGE_PIN G19   IOSTANDARD LVCMOS33 } [get_ports { vga_g[
 set_property -dict { PACKAGE_PIN H19   IOSTANDARD LVCMOS33 } [get_ports { vga_g[1] }]; #IO_L4P_T0_D04_14 Sch=ja[8]
 set_property -dict { PACKAGE_PIN N18   IOSTANDARD LVCMOS33 } [get_ports { vga_b[0] }]; #IO_L9P_T1_DQS_14 Sch=ja[3]
 set_property -dict { PACKAGE_PIN J19   IOSTANDARD LVCMOS33 } [get_ports { vga_b[1] }]; #IO_L6N_T0_D08_VREF_14 Sch=ja[9]
-set_property -dict { PACKAGE_PIN K18   IOSTANDARD LVCMOS33 } [get_ports { vga_vsync }]; #IO_L8N_T1_D12_14 Sch=ja[10]
-set_property -dict { PACKAGE_PIN L18   IOSTANDARD LVCMOS33 } [get_ports { vga_hsync }]; #IO_L8P_T1_D11_14 Sch=ja[4]
+set_property -dict { PACKAGE_PIN K18   IOSTANDARD LVCMOS33 } [get_ports { vga_hsync }]; #IO_L8N_T1_D12_14 Sch=ja[10]
+set_property -dict { PACKAGE_PIN L18   IOSTANDARD LVCMOS33 } [get_ports { vga_vsync }]; #IO_L8P_T1_D11_14 Sch=ja[4]
