@@ -249,7 +249,7 @@ BEGIN
                             -- ACK from slave read
                             rdy_state_next <= TRUE;
                             prot_s_next <= P;
-                            s_next <= P_SDA_DOWN;
+                            s_next <= P_SCL_DOWN;
                         WHEN OTHERS =>
                             -- impossible
                             NULL;
