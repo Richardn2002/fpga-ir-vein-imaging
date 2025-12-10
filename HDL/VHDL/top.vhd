@@ -66,8 +66,8 @@ BEGIN
             cam_scl_out => cam_scl_out,
             cam_sda_in => cam_sda_in,
             cam_sda_out => cam_sda_out,
-            cam_pclk => vga_pclk, -- for testing with pattern generator
-            -- cam_pclk => cam_pclk,
+            -- cam_pclk => vga_pclk, -- for testing with pattern generator
+            cam_pclk => cam_pclk,
             cam_vsync => cam_vsync,
             cam_hsync => cam_hsync,
             cam_d => cam_d,

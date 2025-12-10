@@ -5,8 +5,8 @@ ENTITY flow_ctrl IS
     PORT (
         core_clk : IN STD_LOGIC;
 
-        cam_gen_trg : OUT STD_LOGIC;
-        cam_rdy : IN STD_LOGIC;
+        cam_frame_writing : IN STD_LOGIC;
+        cam_ram_swap_trg : OUT STD_LOGIC;
 
         vga_okay_to_swap : IN STD_LOGIC;
         vga_ram_swap_trg : OUT STD_LOGIC
@@ -14,30 +14,40 @@ ENTITY flow_ctrl IS
 END ENTITY;
 
 ARCHITECTURE arch OF flow_ctrl IS
-    TYPE s_type IS (WAIT_FOR_FRAME, WAIT_FOR_VGA_FREE);
+    SIGNAL first_frame_incoming : BOOLEAN := FALSE;
+    SIGNAL cam_writing_frame_last : STD_LOGIC := '0';
+
+    TYPE s_type IS (WAIT_FOR_FRAME, COMPUTING, WAIT_FOR_VGA_FREE);
     SIGNAL s : s_type := WAIT_FOR_FRAME;
     SIGNAL s_next : s_type;
 
+    SIGNAL cam_ram_swap_trg_next : STD_LOGIC;
     SIGNAL vga_ram_swap_trg_next : STD_LOGIC;
 BEGIN
-    clk_div_inst : ENTITY work.clk_div
-        GENERIC MAP(
-            DIV => 60000000 -- 240 MHz to 4 Hz
-        )
-        PORT MAP(
-            clk => core_clk,
-            ce => cam_gen_trg
-        );
+    PROCESS (core_clk) BEGIN
+        IF rising_edge(core_clk) THEN
+            cam_writing_frame_last <= cam_frame_writing;
+            -- after the start of the first ever frame, the flag will stay TRUE
+            IF cam_writing_frame_last = '0' AND cam_frame_writing = '1' THEN
+                first_frame_incoming <= TRUE;
+            END IF;
+        END IF;
+    END PROCESS;
 
-    PROCESS (s, cam_rdy, vga_okay_to_swap) BEGIN
+    PROCESS (s, first_frame_incoming, cam_frame_writing, vga_okay_to_swap) BEGIN
         s_next <= s;
+        cam_ram_swap_trg_next <= '0';
         vga_ram_swap_trg_next <= '0';
 
         CASE s IS
             WHEN WAIT_FOR_FRAME =>
-                IF cam_rdy = '1' THEN
-                    s_next <= WAIT_FOR_VGA_FREE;
+                IF first_frame_incoming AND cam_frame_writing = '0' THEN
+                    s_next <= COMPUTING;
+                    cam_ram_swap_trg_next <= '1';
                 END IF;
+            WHEN COMPUTING =>
+                -- TODO
+                s_next <= WAIT_FOR_VGA_FREE;
             WHEN WAIT_FOR_VGA_FREE =>
                 IF vga_okay_to_swap = '1' THEN
                     s_next <= WAIT_FOR_FRAME;
@@ -49,6 +59,7 @@ BEGIN
     PROCESS (core_clk) BEGIN
         IF rising_edge(core_clk) THEN
             s <= s_next;
+            cam_ram_swap_trg <= cam_ram_swap_trg_next;
             vga_ram_swap_trg <= vga_ram_swap_trg_next;
         END IF;
     END PROCESS;

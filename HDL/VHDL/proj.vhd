@@ -33,14 +33,14 @@ ENTITY proj IS
 END proj;
 
 ARCHITECTURE arch OF proj IS
-    SIGNAL cam_gen_trg_from_core : STD_LOGIC;
-    SIGNAL cam_gen_trg_to_cam : STD_LOGIC;
-    SIGNAL cam_rdy_from_cam : STD_LOGIC;
-    SIGNAL cam_rdy_to_core : STD_LOGIC;
+    SIGNAL cam_frame_writing : STD_LOGIC;
+    SIGNAL cam_frame_writing_to_core : STD_LOGIC;
     SIGNAL cam_ram_swap_trg : STD_LOGIC;
+    SIGNAL cam_ram_swap_trg_from_core : STD_LOGIC;
 
     SIGNAL cam_ram_we : STD_LOGIC;
-    SIGNAL cam_ram_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL cam_x : NATURAL RANGE 0 TO constants.INPUT_X - 1;
+    SIGNAL cam_y : NATURAL RANGE 0 TO constants.INPUT_Y - 1;
     SIGNAL cam_ram_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
 
     SIGNAL cam_ram_we_0 : STD_LOGIC;
@@ -80,49 +80,48 @@ BEGIN
     flow_ctrl_inst : ENTITY work.flow_ctrl
         PORT MAP(
             core_clk => core_clk,
-            cam_gen_trg => cam_gen_trg_from_core,
-            cam_rdy => cam_rdy_to_core,
+            cam_frame_writing => cam_frame_writing_to_core,
+            cam_ram_swap_trg => cam_ram_swap_trg_from_core,
             vga_okay_to_swap => vga_okay_to_swap,
             vga_ram_swap_trg => vga_swap_trg_from_core
         );
-    -- cam can swap ram itself when a frame is ready
-    cam_ram_swap_trg <= cam_rdy_from_cam;
 
     cam_n_core_inst : ENTITY work.cam_n_core
         PORT MAP(
             cam_clk => cam_pclk,
-            rdy_from_cam => cam_rdy_from_cam,
-            trg_to_cam => cam_gen_trg_to_cam,
+            frame_writing_from_cam => cam_frame_writing,
+            ram_swap_to_cam => cam_ram_swap_trg,
             core_clk => core_clk,
-            rdy_to_core => cam_rdy_to_core,
-            trg_from_core => cam_gen_trg_from_core
+            frame_writing_to_core => cam_frame_writing_to_core,
+            ram_swap_from_core => cam_ram_swap_trg_from_core
         );
 
-    cam_test_pattern_inst : ENTITY work.cam_test_pattern
-        GENERIC MAP(
-            OUTPUT_X => constants.HESSIAN_OUTPUT_X,
-            OUTPUT_Y => constants.HESSIAN_OUTPUT_Y,
-            OUTPUT_ADDR_BITS => constants.HESSIAN_OUTPUT_ADDR_BITS
-        )
+    cam_vga_inst : ENTITY work.cam_vga
         PORT MAP(
             pclk => cam_pclk,
-            trg => cam_gen_trg_to_cam,
-            rdy => cam_rdy_from_cam,
-            ram_we => cam_ram_we,
-            ram_addr => cam_ram_addr,
-            ram_d => cam_ram_d
+            vsync => cam_vsync,
+            hsync => cam_hsync,
+            data => cam_d,
+            px_byte => cam_ram_d,
+            px_rdy => cam_ram_we,
+            frame_writing => cam_frame_writing,
+            x => cam_x,
+            y => cam_y
         );
 
     cam_n_bram_inst : ENTITY work.cam_n_bram
         GENERIC MAP(
             INIT_USE_0 => FALSE,
+            OUTPUT_X => constants.HESSIAN_OUTPUT_X,
+            OUTPUT_Y => constants.HESSIAN_OUTPUT_Y,
             ADDR_BITS => constants.HESSIAN_OUTPUT_ADDR_BITS
         )
         PORT MAP(
             cam_clk => cam_pclk,
             trg => cam_ram_swap_trg,
             cam_we => cam_ram_we,
-            cam_addr => cam_ram_addr,
+            cam_x => cam_x,
+            cam_y => cam_y,
             cam_d => cam_ram_d,
             bram_we_0 => cam_ram_we_0,
             bram_addr_0 => cam_ram_addr_0,
