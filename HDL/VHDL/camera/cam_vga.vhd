@@ -52,7 +52,6 @@ BEGIN
             ELSIF (vsync_prev = '0' AND vsync = '1') THEN --vsync rising edge > frame ended           
                 y_cnt <= 0;
                 x_cnt <= 0;
-                frame_writing <= '0';
             END IF;
 
             IF (hsync_prev = '0' AND hsync = '1') THEN --hsync rising edge > row started                
@@ -62,6 +61,9 @@ BEGIN
                 END IF;
             ELSIF (hsync_prev = '1' AND hsync = '0') THEN --hsync falling edge > row ended              
                 y_cnt <= y_cnt + 1; --next row
+                IF y_cnt = 127 THEN
+                    frame_writing <= '0';
+                END IF;
             END IF;
 
             vsync_prev <= vsync;
