@@ -54,12 +54,13 @@ BEGIN
                 x_cnt <= 0;
             END IF;
 
-            IF (hsync_prev = '0' AND hsync = '1') THEN --hsync rising edge > row started                
+            IF (hsync_prev = '0' AND hsync = '1') THEN --hsync rising edge > row started   
                 x_cnt <= 0; --reset column
                 IF y_cnt = 0 THEN
                     frame_writing <= '1';
                 END IF;
-            ELSIF (hsync_prev = '1' AND hsync = '0') THEN --hsync falling edge > row ended              
+            ELSIF (hsync_prev = '1' AND hsync = '0') THEN --hsync falling edge > row ended      
+                px_rdy_toggle <= '1'; -- prepare for next row      
                 y_cnt <= y_cnt + 1; --next row
                 IF y_cnt = 127 THEN
                     frame_writing <= '0';
