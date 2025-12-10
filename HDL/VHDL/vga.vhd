@@ -102,8 +102,10 @@ BEGIN
     b <= b"00" WHEN blank = '1' ELSE
         pixel;
 
-    -- convert to 2-bit color
-    pixel <= ram_d(7 DOWNTO 6);
+    -- convert to 2-bit color, valid region only
+    pixel <= ram_d(7 DOWNTO 6) WHEN hcount >= HBEGIN AND hcount < HEND AND vcount >= VBEGIN AND vcount < VEND
+        ELSE
+        "00";
     -- read pixel data, 1 cycle early for ram delay
     x <= (hcount - HBEGIN + 1) / PIXSIZE;
     y <= (vcount - VBEGIN) / PIXSIZE;
