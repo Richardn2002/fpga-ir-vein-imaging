@@ -14,7 +14,7 @@ ENTITY flow_ctrl IS
 END ENTITY;
 
 ARCHITECTURE arch OF flow_ctrl IS
-    SIGNAL first_frame_incoming : BOOLEAN := FALSE;
+    SIGNAL new_frame_incoming : BOOLEAN := FALSE;
     SIGNAL cam_writing_frame_last : STD_LOGIC := '0';
 
     TYPE s_type IS (WAIT_FOR_FRAME, COMPUTING, WAIT_FOR_VGA_FREE);
@@ -27,21 +27,23 @@ BEGIN
     PROCESS (core_clk) BEGIN
         IF rising_edge(core_clk) THEN
             cam_writing_frame_last <= cam_frame_writing;
-            -- after the start of the first ever frame, the flag will stay TRUE
             IF cam_writing_frame_last = '0' AND cam_frame_writing = '1' THEN
-                first_frame_incoming <= TRUE;
+                new_frame_incoming <= TRUE;
+            END IF;
+            IF s = COMPUTING THEN
+                new_frame_incoming <= FALSE;
             END IF;
         END IF;
     END PROCESS;
 
-    PROCESS (s, first_frame_incoming, cam_frame_writing, vga_okay_to_swap) BEGIN
+    PROCESS (s, new_frame_incoming, cam_frame_writing, vga_okay_to_swap) BEGIN
         s_next <= s;
         cam_ram_swap_trg_next <= '0';
         vga_ram_swap_trg_next <= '0';
 
         CASE s IS
             WHEN WAIT_FOR_FRAME =>
-                IF first_frame_incoming AND cam_frame_writing = '0' THEN
+                IF new_frame_incoming AND cam_frame_writing = '0' THEN
                     s_next <= COMPUTING;
                     cam_ram_swap_trg_next <= '1';
                 END IF;
