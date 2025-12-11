@@ -1,5 +1,6 @@
 from PIL import Image
 import os
+import sys
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -481,7 +482,17 @@ if __name__ == "__main__":
 
     # module instantiations and visual checks
 
-    ram_input = load_test_input()
+    if len(sys.argv) == 1:
+        ram_input = load_test_input()
+    else:
+        img = np.array(Image.open(sys.argv[1]).convert("L"))
+        img_resized = np.zeros((128, 128), dtype=np.uint8)
+        for y in range(128):
+            for x in range(128):
+                img_resized[y, x] = np.uint8(
+                    np.mean(img[4 * y : 4 * y + 4, 4 * x : 4 * x + 4])
+                )
+        ram_input = img_resized
 
     for row in range(CLAHE_PATCH_Y_NUM):
         for col in range(CLAHE_PATCH_X_NUM):
