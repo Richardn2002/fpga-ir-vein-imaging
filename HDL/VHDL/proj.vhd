@@ -1,9 +1,15 @@
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.ALL;
+USE std.textio.ALL;
+USE IEEE.numeric_std.ALL;
 
 USE work.constants;
 
 ENTITY proj IS
+    GENERIC (
+        CONSTANT IS_SIM : BOOLEAN := FALSE;
+        CONSTANT TEST_INPUT_FILE_0 : STRING := ""
+    );
     PORT (
         core_clk : IN STD_LOGIC;
 
@@ -67,6 +73,9 @@ ARCHITECTURE arch OF proj IS
     SIGNAL vga_ram_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
 BEGIN
     cam_ov7670_ctrl_inst : ENTITY work.cam_ov7670_ctrl
+        GENERIC MAP(
+            IGNORE_I2C_ACK => IS_SIM
+        )
         PORT MAP(
             clk => cam_ctrl_clk,
             rst => cam_rst,
@@ -96,18 +105,84 @@ BEGIN
             ram_swap_from_core => cam_ram_swap_trg_from_core
         );
 
-    cam_vga_inst : ENTITY work.cam_vga
-        PORT MAP(
-            pclk => cam_pclk,
-            vsync => cam_vsync,
-            hsync => cam_hsync,
-            data => cam_d,
-            px_byte => cam_ram_d,
-            px_rdy => cam_ram_we,
-            frame_writing => cam_frame_writing,
-            x => cam_x,
-            y => cam_y
-        );
+    -- for some reason vivado does not like if generate without a label
+    real_cam_input : IF NOT IS_SIM GENERATE
+        cam_vga_inst : ENTITY work.cam_vga
+            PORT MAP(
+                pclk => cam_pclk,
+                vsync => cam_vsync,
+                hsync => cam_hsync,
+                data => cam_d,
+                px_byte => cam_ram_d,
+                px_rdy => cam_ram_we,
+                frame_writing => cam_frame_writing,
+                x => cam_x,
+                y => cam_y
+            );
+    END GENERATE real_cam_input;
+    -- for some reason the formatter does not like if generate else generate
+    test_cam_input : IF IS_SIM GENERATE
+        PROCESS
+            FILE img_file : text OPEN READ_MODE IS TEST_INPUT_FILE_0;
+            VARIABLE ln : line;
+            VARIABLE value : NATURAL;
+            VARIABLE idx : NATURAL := 0;
+            TYPE input_t IS ARRAY (0 TO constants.INPUT_X * constants.INPUT_Y - 1) OF NATURAL;
+            VARIABLE test_input_0 : input_t;
+
+            VARIABLE px_idx : NATURAL;
+            VARIABLE frame_interval_cnt : NATURAL;
+        BEGIN
+            WHILE NOT endfile(img_file) LOOP
+                readline(img_file, ln);
+                read(ln, value);
+                IF idx < constants.INPUT_X * constants.INPUT_Y THEN
+                    test_input_0(idx) := value;
+                ELSE
+                    ASSERT false
+                    REPORT "File has more data than expected input."
+                        SEVERITY error;
+                END IF;
+                idx := idx + 1;
+            END LOOP;
+            IF idx /= constants.INPUT_X * constants.INPUT_Y THEN
+                ASSERT false
+                REPORT "File has less data than expected input."
+                    SEVERITY error;
+            END IF;
+
+            cam_ram_d <= (OTHERS => '0');
+            cam_ram_we <= '0';
+            cam_frame_writing <= '0';
+            cam_x <= 0;
+            cam_y <= 0;
+            WAIT FOR 10 ns;
+
+            WHILE TRUE LOOP
+                px_idx := 0;
+                frame_interval_cnt := 250000;
+
+                WHILE px_idx /= constants.INPUT_X * constants.INPUT_Y LOOP
+                    WAIT UNTIL rising_edge(cam_pclk);
+
+                    cam_ram_d <= STD_LOGIC_VECTOR(to_unsigned(test_input_0(px_idx), 8));
+                    cam_ram_we <= '1';
+                    cam_frame_writing <= '1';
+                    cam_x <= px_idx MOD constants.INPUT_X;
+                    cam_y <= px_idx / constants.INPUT_X;
+
+                    px_idx := px_idx + 1;
+                END LOOP;
+
+                cam_frame_writing <= '0';
+
+                WHILE frame_interval_cnt > 0 LOOP
+                    WAIT UNTIL rising_edge(cam_pclk);
+                    frame_interval_cnt := frame_interval_cnt - 1;
+                END LOOP;
+            END LOOP;
+        END PROCESS;
+    END GENERATE test_cam_input;
 
     cam_n_bram_inst : ENTITY work.cam_n_bram
         GENERIC MAP(
