@@ -33,6 +33,7 @@ END ENTITY;
 ARCHITECTURE arch OF cam_n_bram IS
     SIGNAL use_0 : BOOLEAN := INIT_USE_0;
     SIGNAL use_0_next : BOOLEAN;
+    SIGNAL valid_we : STD_LOGIC;
     SIGNAL valid_addr : STD_LOGIC_VECTOR(ADDR_BITS - 1 DOWNTO 0);
 BEGIN
     -- combinatorial
@@ -43,25 +44,22 @@ BEGIN
     bram_addr_1 <= valid_addr;
     --- only use addr value when module drives write enable
     PROCESS (cam_we, cam_x, cam_y) BEGIN
-        IF cam_we = '1' THEN
-            IF cam_x >= OUTPUT_X OR cam_y >= OUTPUT_Y THEN
-                -- out of selected output range, route to last entry of ram
-                valid_addr <= (OTHERS => '1');
-            ELSE
-                valid_addr <= STD_LOGIC_VECTOR(to_unsigned(cam_x, ADDR_BITS) + resize(to_unsigned(cam_y, ADDR_BITS) * OUTPUT_Y, ADDR_BITS));
-            END IF;
+        IF cam_we = '1' AND cam_x < OUTPUT_X AND cam_y < OUTPUT_Y THEN
+            valid_we <= '1';
+            valid_addr <= STD_LOGIC_VECTOR(to_unsigned(cam_x, ADDR_BITS) + resize(to_unsigned(cam_y, ADDR_BITS) * OUTPUT_X, ADDR_BITS));
         ELSE
+            valid_we <= '0';
             valid_addr <= (OTHERS => '0');
         END IF;
     END PROCESS;
     --- MUX to select BRAM to write to
-    PROCESS (use_0, cam_we) BEGIN
+    PROCESS (use_0, valid_we) BEGIN
         IF use_0 THEN
-            bram_we_0 <= cam_we;
+            bram_we_0 <= valid_we;
             bram_we_1 <= '0';
         ELSE
             bram_we_0 <= '0';
-            bram_we_1 <= cam_we;
+            bram_we_1 <= valid_we;
         END IF;
     END PROCESS;
     --- swaps on trigger
