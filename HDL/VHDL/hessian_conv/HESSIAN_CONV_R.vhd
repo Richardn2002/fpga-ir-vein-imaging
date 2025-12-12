@@ -137,6 +137,8 @@ BEGIN
                 state_next <= ROW_PRIME_WAIT1;
 
             WHEN ROW_PRIME_WAIT1 =>
+                clahe_in_en   <= '1';
+                clahe_in_addr <= std_logic_vector(to_unsigned(in_addr, 14));
                 state_next <= ROW_PRIME_WAIT2;
 
             WHEN ROW_PRIME_WAIT2 =>
@@ -176,6 +178,9 @@ BEGIN
                 state_next <= PIX_WAIT1;
 
             WHEN PIX_WAIT1 =>
+                
+                clahe_in_en   <= '1';
+                clahe_in_addr <= std_logic_vector(to_unsigned(in_addr, 14));
                 state_next <= PIX_WAIT2;
 
             WHEN PIX_WAIT2 =>

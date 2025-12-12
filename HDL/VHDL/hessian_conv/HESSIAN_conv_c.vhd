@@ -20,9 +20,9 @@ END HESSIAN_conv_c;
 
 ARCHITECTURE rtl OF HESSIAN_conv_c IS
 
-    CONSTANT IN_X   : INTEGER := 90;  -- input width  (conv_r result)
-    CONSTANT IN_Y   : INTEGER := 90;  -- input height (conv_r result)
-    CONSTANT OUT_X  : INTEGER := 90;  -- same size
+    CONSTANT IN_X   : INTEGER := 90;  
+    CONSTANT IN_Y   : INTEGER := 90;  
+    CONSTANT OUT_X  : INTEGER := 90;  
     CONSTANT OUT_Y  : INTEGER := 90;
 
     TYPE state_t IS (
@@ -146,7 +146,9 @@ BEGIN
                 state_next <= COL_PRIME_WAIT1;
 
             WHEN COL_PRIME_WAIT1 =>
-                -- 1-cycle BRAM latency
+
+                conv_in_en   <= '1';
+                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
                 state_next <= COL_PRIME_WAIT2;
 
             WHEN COL_PRIME_WAIT2 =>
@@ -190,7 +192,8 @@ BEGIN
                 state_next <= PIX_WAIT1;
 
             WHEN PIX_WAIT1 =>
-                -- BRAM latency
+                conv_in_en   <= '1';
+                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
                 state_next <= PIX_WAIT2;
 
             WHEN PIX_WAIT2 =>
@@ -198,7 +201,6 @@ BEGIN
 
                 c := unsigned(conv_in_d);
 
-                -- shift up
                 w0_next <= w1;
                 w1_next <= w2;
                 w2_next <= w3;

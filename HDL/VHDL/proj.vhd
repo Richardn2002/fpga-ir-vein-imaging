@@ -547,7 +547,7 @@ BEGIN
             clk_a => core_clk,
             sel_a => hessian_ram_0_a_user,
             we_a_0 => '0',
-            re_a_0 => '0',
+            re_a_0 => hessian_conv_c_ram_0_re,
             addr_a_0 => hessian_conv_c_ram_0_addr,
             din_a_0 => (OTHERS => '0'),
             we_a_1 => '0',
