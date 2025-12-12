@@ -87,8 +87,7 @@ BEGIN
         ELSE
         we_a_2 WHEN sel_a = 2
         ELSE
-        we_a_3 WHEN sel_a = 3
-        ;
+        we_a_3;
     valid_addr_a_0 <= addr_a_0 WHEN (we_a_0 OR re_a_0) = '1'
         ELSE
         (OTHERS => '0');
@@ -107,16 +106,14 @@ BEGIN
         ELSE
         valid_addr_a_2 WHEN sel_a = 2
         ELSE
-        valid_addr_a_3 WHEN sel_a = 3
-        ;
+        valid_addr_a_3;
     din_a <= din_a_0 WHEN sel_a = 0
         ELSE
         din_a_1 WHEN sel_a = 1
         ELSE
         din_a_2 WHEN sel_a = 2
         ELSE
-        din_a_3 WHEN sel_a = 3
-        ;
+        din_a_3;
 
     we_b <= we_b_0 WHEN sel_b = 0
         ELSE
@@ -124,8 +121,7 @@ BEGIN
         ELSE
         we_b_2 WHEN sel_b = 2
         ELSE
-        we_b_3 WHEN sel_b = 3
-        ;
+        we_b_3;
     valid_addr_b_0 <= addr_b_0 WHEN (we_b_0 OR re_b_0) = '1'
         ELSE
         (OTHERS => '0');
@@ -144,16 +140,14 @@ BEGIN
         ELSE
         valid_addr_b_2 WHEN sel_b = 2
         ELSE
-        valid_addr_b_3 WHEN sel_b = 3
-        ;
+        valid_addr_b_3;
     din_b <= din_b_0 WHEN sel_b = 0
         ELSE
         din_b_1 WHEN sel_b = 1
         ELSE
         din_b_2 WHEN sel_b = 2
         ELSE
-        din_b_3 WHEN sel_b = 3
-        ;
+        din_b_3;
 
     bram_tdp_inst : ENTITY work.bram_tdp
         GENERIC MAP(
