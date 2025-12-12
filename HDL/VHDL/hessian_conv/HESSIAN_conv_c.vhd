@@ -9,11 +9,11 @@ ENTITY HESSIAN_conv_c IS
         rdy : OUT STD_LOGIC;
 
         conv_in_en   : OUT STD_LOGIC;
-        conv_in_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+        conv_in_addr : OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
         conv_in_d    : IN  STD_LOGIC_VECTOR(15 DOWNTO 0);
 
         conv_out_en   : OUT STD_LOGIC;
-        conv_out_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+        conv_out_addr : OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
         conv_out_d    : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
     );
 END HESSIAN_conv_c;
@@ -141,7 +141,7 @@ BEGIN
                 in_addr := row_idx * IN_X + x;  -- (row_idx, x)
 
                 conv_in_en   <= '1';
-                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 14));
+                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
 
                 state_next <= COL_PRIME_WAIT1;
 
@@ -185,7 +185,7 @@ BEGIN
                 in_addr := row_idx * IN_X + x;
 
                 conv_in_en   <= '1';
-                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 14));
+                conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
 
                 state_next <= PIX_WAIT1;
 
@@ -216,7 +216,7 @@ BEGIN
                 out_addr := y * OUT_X + x;
 
                 conv_out_en   <= '1';
-                conv_out_addr <= STD_LOGIC_VECTOR(to_unsigned(out_addr, 14));
+                conv_out_addr <= STD_LOGIC_VECTOR(to_unsigned(out_addr, 13));
                 conv_out_d    <= STD_LOGIC_VECTOR(sum_int);
 
                 state_next    <= NEXT_PIXEL;

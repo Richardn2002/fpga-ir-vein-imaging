@@ -16,7 +16,7 @@ ARCHITECTURE sim OF hessian_conv_r_tb IS
     SIGNAL clahe_in_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
 
     SIGNAL conv_out_en : STD_LOGIC;
-    SIGNAL conv_out_addr : STD_LOGIC_VECTOR(13 DOWNTO 0);
+    SIGNAL conv_out_addr : STD_LOGIC_VECTOR(12 DOWNTO 0);
     SIGNAL conv_out_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
     TYPE img_t IS ARRAY (0 TO 96 * 96 - 1) OF unsigned(7 DOWNTO 0);
     SIGNAL img_ram : img_t := (OTHERS => (OTHERS => '0'));

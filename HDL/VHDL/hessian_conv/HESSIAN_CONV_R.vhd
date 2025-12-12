@@ -13,7 +13,7 @@ ENTITY HESSIAN_conv_r IS
         clahe_in_d    : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
 
         conv_out_en   : OUT STD_LOGIC;
-        conv_out_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+        conv_out_addr : OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
         conv_out_d    : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
     );
 END HESSIAN_conv_r;
@@ -202,7 +202,7 @@ BEGIN
                 out_addr := y * OUT_X + x;
 
                 conv_out_en   <= '1';
-                conv_out_addr <= STD_LOGIC_VECTOR(to_unsigned(out_addr, 14));
+                conv_out_addr <= STD_LOGIC_VECTOR(to_unsigned(out_addr, 13));
                 conv_out_d    <= STD_LOGIC_VECTOR(sum_int);
 
                 state_next    <= NEXT_PIXEL;
