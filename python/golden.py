@@ -173,11 +173,11 @@ def hessian_conv_c(conv_r_in: np.ndarray, conv_out: np.ndarray):
         # pad by border
         window[0:5] = np.array(
             [
-                conv_r_in[0][0],
-                conv_r_in[0][0],
-                conv_r_in[0][0],
-                conv_r_in[1][0],
-                conv_r_in[2][0],
+                conv_r_in[0][col],
+                conv_r_in[0][col],
+                conv_r_in[0][col],
+                conv_r_in[1][col],
+                conv_r_in[2][col],
             ]
         )
         for row in range(HESSIAN_OUTPUT_Y):
