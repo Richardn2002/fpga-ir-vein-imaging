@@ -138,6 +138,22 @@ ARCHITECTURE arch OF proj IS
     SIGNAL hessian_conv_c_ram_1_we : STD_LOGIC;
     SIGNAL hessian_conv_c_ram_1_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL hessian_conv_c_ram_1_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    --- hessian_grad_r
+    SIGNAL hessian_grad_r_ram_1_a_re : STD_LOGIC;
+    SIGNAL hessian_grad_r_ram_1_a_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_r_ram_1_b_re : STD_LOGIC;
+    SIGNAL hessian_grad_r_ram_1_b_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_r_ram_0_we : STD_LOGIC;
+    SIGNAL hessian_grad_r_ram_0_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_r_ram_0_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    --- hessian_grad_c_0
+    SIGNAL hessian_grad_c_0_ram_1_a_re : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_ram_1_a_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_c_0_ram_1_b_re : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_ram_1_b_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_c_0_ram_2_we : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_ram_2_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_c_0_ram_2_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
     --- shared outputs of bram_hessian_0/1/2
     SIGNAL ram_0_dout_a : STD_LOGIC_VECTOR(15 DOWNTO 0);
     SIGNAL ram_0_dout_b : STD_LOGIC_VECTOR(15 DOWNTO 0);
@@ -531,8 +547,40 @@ BEGIN
             conv_out_d => hessian_conv_c_ram_1_d
         );
 
-    hessian_grad_r_rdy <= '1';
-    hessian_grad_c_0_rdy <= '1';
+    hessian_grad_r_ram_1_a_re <= '1';
+    hessian_grad_r_ram_1_b_re <= '1';
+    hessian_grad_r : ENTITY work.hessian_grad_r
+        PORT MAP(
+            clk => core_clk,
+            rst => '0',
+            start => hessian_grad_r_trg,
+            done => hessian_grad_r_rdy,
+            conv0_addr => hessian_grad_r_ram_1_a_addr,
+            conv1_addr => hessian_grad_r_ram_1_b_addr,
+            conv0_dout => ram_1_dout_a,
+            conv1_dout => ram_1_dout_b,
+            gr_addr => hessian_grad_r_ram_0_addr,
+            gr_din => hessian_grad_r_ram_0_d,
+            gr_we => hessian_grad_r_ram_0_we
+        );
+
+    hessian_grad_c_0_ram_1_a_re <= '1';
+    hessian_grad_c_0_ram_1_b_re <= '1';
+    hessian_grad_c_0 : ENTITY work.hessian_grad_c
+        PORT MAP(
+            clk => core_clk,
+            rst => '0',
+            start => hessian_grad_c_0_trg,
+            done => hessian_grad_c_0_rdy,
+            conv0_addr => hessian_grad_c_0_ram_1_a_addr,
+            conv1_addr => hessian_grad_c_0_ram_1_b_addr,
+            conv0_dout => ram_1_dout_a,
+            conv1_dout => ram_1_dout_b,
+            gc_addr => hessian_grad_c_0_ram_2_addr,
+            gc_din => hessian_grad_c_0_ram_2_d,
+            gc_we => hessian_grad_c_0_ram_2_we
+        );
+
     hessian_grad_rr_cc_rdy <= '1';
     hessian_grad_c_1_rdy <= '1';
     hessian_output_rdy <= '1';
@@ -569,10 +617,10 @@ BEGIN
             re_b_0 => '0',
             addr_b_0 => hessian_conv_r_ram_0_addr,
             din_b_0 => hessian_conv_r_ram_0_d,
-            we_b_1 => '0',
+            we_b_1 => hessian_grad_r_ram_0_we,
             re_b_1 => '0',
-            addr_b_1 => (OTHERS => '0'),
-            din_b_1 => (OTHERS => '0'),
+            addr_b_1 => hessian_grad_r_ram_0_addr,
+            din_b_1 => hessian_grad_r_ram_0_d,
             we_b_2 => '0',
             re_b_2 => '0',
             addr_b_2 => (OTHERS => '0'),
@@ -594,12 +642,12 @@ BEGIN
             clk_a => core_clk,
             sel_a => hessian_ram_1_a_user,
             we_a_0 => '0',
-            re_a_0 => '0',
-            addr_a_0 => (OTHERS => '0'),
+            re_a_0 => hessian_grad_r_ram_1_a_re,
+            addr_a_0 => hessian_grad_r_ram_1_a_addr,
             din_a_0 => (OTHERS => '0'),
             we_a_1 => '0',
-            re_a_1 => '0',
-            addr_a_1 => (OTHERS => '0'),
+            re_a_1 => hessian_grad_c_0_ram_1_a_re,
+            addr_a_1 => hessian_grad_c_0_ram_1_a_addr,
             din_a_1 => (OTHERS => '0'),
             we_a_2 => '0',
             re_a_2 => '0',
@@ -617,16 +665,16 @@ BEGIN
             addr_b_0 => hessian_conv_c_ram_1_addr,
             din_b_0 => hessian_conv_c_ram_1_d,
             we_b_1 => '0',
-            re_b_1 => '0',
-            addr_b_1 => (OTHERS => '0'),
+            re_b_1 => hessian_grad_r_ram_1_b_re,
+            addr_b_1 => hessian_grad_r_ram_1_b_addr,
             din_b_1 => (OTHERS => '0'),
             we_b_2 => '0',
             re_b_2 => '0',
             addr_b_2 => (OTHERS => '0'),
             din_b_2 => (OTHERS => '0'),
             we_b_3 => '0',
-            re_b_3 => '0',
-            addr_b_3 => (OTHERS => '0'),
+            re_b_3 => hessian_grad_c_0_ram_1_b_re,
+            addr_b_3 => hessian_grad_c_0_ram_1_b_addr,
             din_b_3 => (OTHERS => '0'),
             dout_b => ram_1_dout_b
         );
@@ -648,10 +696,10 @@ BEGIN
             re_a_1 => '0',
             addr_a_1 => (OTHERS => '0'),
             din_a_1 => (OTHERS => '0'),
-            we_a_2 => '0',
+            we_a_2 => hessian_grad_c_0_ram_2_we,
             re_a_2 => '0',
-            addr_a_2 => (OTHERS => '0'),
-            din_a_2 => (OTHERS => '0'),
+            addr_a_2 => hessian_grad_c_0_ram_2_addr,
+            din_a_2 => hessian_grad_c_0_ram_2_d,
             we_a_3 => '0',
             re_a_3 => '0',
             addr_a_3 => (OTHERS => '0'),

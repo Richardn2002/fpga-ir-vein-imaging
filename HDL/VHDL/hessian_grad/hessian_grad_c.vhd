@@ -1,7 +1,10 @@
 LIBRARY IEEE;
 USE IEEE.STD_LOGIC_1164.ALL;
 USE IEEE.NUMERIC_STD.ALL;
-USE work.hessian_constants.ALL;
+
+USE work.constants.HESSIAN_OUTPUT_X;
+USE work.constants.HESSIAN_OUTPUT_Y;
+USE work.constants.HESSIAN_OUTPUT_ADDR_BITS;
 
 ENTITY hessian_grad_c IS
     PORT (
@@ -9,12 +12,12 @@ ENTITY hessian_grad_c IS
         rst : IN STD_LOGIC;
         start : IN STD_LOGIC;
         done : OUT STD_LOGIC;
-        conv0_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0); -- can change to 12(90^2)
-        conv1_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
-        conv0_dout : IN signed(15 DOWNTO 0); -- 8bit*2
-        conv1_dout : IN signed(15 DOWNTO 0);
-        gc_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
-        gc_din : OUT signed(15 DOWNTO 0);
+        conv0_addr : OUT STD_LOGIC_VECTOR(HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+        conv1_addr : OUT STD_LOGIC_VECTOR(HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+        conv0_dout : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        conv1_dout : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+        gc_addr : OUT STD_LOGIC_VECTOR(HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+        gc_din : OUT STD_LOGIC_VECTOR(15 DOWNTO 0);
         gc_we : OUT STD_LOGIC
     );
 END hessian_grad_c;
@@ -25,7 +28,15 @@ ARCHITECTURE Behavioral OF hessian_grad_c IS
     SIGNAL y_cnt : INTEGER RANGE 0 TO HESSIAN_OUTPUT_Y := 0;
     SIGNAL x_cnt : INTEGER RANGE 0 TO HESSIAN_OUTPUT_X := 0;
     SIGNAL gc_calc : signed(15 DOWNTO 0);
+
+    SIGNAL conv0_dout_signed : signed(15 DOWNTO 0);
+    SIGNAL conv1_dout_signed : signed(15 DOWNTO 0);
+    SIGNAL gc_din_signed : signed(15 DOWNTO 0);
 BEGIN
+    conv0_dout_signed <= signed(conv0_dout);
+    conv1_dout_signed <= signed(conv1_dout);
+    gc_din <= STD_LOGIC_VECTOR(gc_din_signed);
+
     PROCESS (clk)
     BEGIN
         IF rising_edge(clk) THEN
@@ -49,14 +60,14 @@ BEGIN
                     WHEN PREPARE =>
                         gc_we <= '0';
                         IF x_cnt = 0 THEN
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X, 14));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + 1, 14));
+                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X, HESSIAN_OUTPUT_ADDR_BITS));
+                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + 1, HESSIAN_OUTPUT_ADDR_BITS));
                         ELSIF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, 14));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, 14));
+                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
+                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
                         ELSE
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, 14));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt + 1, 14));
+                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
+                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt + 1, HESSIAN_OUTPUT_ADDR_BITS));
                         END IF;
                         state <= WAIT_READ;
 
@@ -65,15 +76,15 @@ BEGIN
 
                     WHEN COMPUTE =>
                         IF x_cnt = 0 OR x_cnt = HESSIAN_OUTPUT_X - 1 THEN
-                            gc_calc <= shift_left(conv1_dout - conv0_dout, 1); -- multiplied by 2 for normalization
+                            gc_calc <= shift_left(conv1_dout_signed - conv0_dout_signed, 1); -- multiplied by 2 for normalization
                         ELSE
-                            gc_calc <= conv1_dout - conv0_dout;
+                            gc_calc <= conv1_dout_signed - conv0_dout_signed;
                         END IF;
                         state <= WRITE_OUTPUT;
 
                     WHEN WRITE_OUTPUT =>
-                        gc_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, 14));
-                        gc_din <= gc_calc;
+                        gc_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
+                        gc_din_signed <= gc_calc;
                         gc_we <= '1';
 
                         IF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
