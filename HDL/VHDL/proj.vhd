@@ -552,7 +552,6 @@ BEGIN
     hessian_grad_r : ENTITY work.hessian_grad_r
         PORT MAP(
             clk => core_clk,
-            rst => '0',
             start => hessian_grad_r_trg,
             done => hessian_grad_r_rdy,
             conv0_addr => hessian_grad_r_ram_1_a_addr,
@@ -569,7 +568,6 @@ BEGIN
     hessian_grad_c_0 : ENTITY work.hessian_grad_c
         PORT MAP(
             clk => core_clk,
-            rst => '0',
             start => hessian_grad_c_0_trg,
             done => hessian_grad_c_0_rdy,
             conv0_addr => hessian_grad_c_0_ram_1_a_addr,

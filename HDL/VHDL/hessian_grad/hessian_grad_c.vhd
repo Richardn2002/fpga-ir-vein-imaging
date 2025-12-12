@@ -9,7 +9,6 @@ USE work.constants.HESSIAN_OUTPUT_ADDR_BITS;
 ENTITY hessian_grad_c IS
     PORT (
         clk : IN STD_LOGIC;
-        rst : IN STD_LOGIC;
         start : IN STD_LOGIC;
         done : OUT STD_LOGIC;
         conv0_addr : OUT STD_LOGIC_VECTOR(HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
@@ -40,74 +39,68 @@ BEGIN
     PROCESS (clk)
     BEGIN
         IF rising_edge(clk) THEN
-            IF rst = '1' THEN
-                state <= IDLE;
-                y_cnt <= 0;
-                x_cnt <= 0;
-                done <= '0';
-                gc_we <= '0';
-            ELSE
-                CASE state IS
-                    WHEN IDLE =>
-                        done <= '0';
-                        gc_we <= '0';
-                        IF start = '1' THEN
-                            y_cnt <= 0;
-                            x_cnt <= 0;
+            CASE state IS
+                WHEN IDLE =>
+                    state <= IDLE;
+                    y_cnt <= 0;
+                    x_cnt <= 0;
+                    done <= '0';
+                    gc_we <= '0';
+                    IF start = '1' THEN
+
+                        state <= PREPARE;
+                    END IF;
+
+                WHEN PREPARE =>
+                    gc_we <= '0';
+                    IF x_cnt = 0 THEN
+                        conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X, HESSIAN_OUTPUT_ADDR_BITS));
+                        conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + 1, HESSIAN_OUTPUT_ADDR_BITS));
+                    ELSIF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
+                        conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
+                        conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
+                    ELSE
+                        conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
+                        conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt + 1, HESSIAN_OUTPUT_ADDR_BITS));
+                    END IF;
+                    state <= WAIT_READ;
+
+                WHEN WAIT_READ =>
+                    state <= COMPUTE;
+
+                WHEN COMPUTE =>
+                    IF x_cnt = 0 OR x_cnt = HESSIAN_OUTPUT_X - 1 THEN
+                        gc_calc <= shift_left(conv1_dout_signed - conv0_dout_signed, 1); -- multiplied by 2 for normalization
+                    ELSE
+                        gc_calc <= conv1_dout_signed - conv0_dout_signed;
+                    END IF;
+                    state <= WRITE_OUTPUT;
+
+                WHEN WRITE_OUTPUT =>
+                    gc_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
+                    gc_din_signed <= gc_calc;
+                    gc_we <= '1';
+
+                    IF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
+                        x_cnt <= 0;
+                        IF y_cnt = HESSIAN_OUTPUT_Y - 1 THEN
+                            state <= FINISHED;
+                        ELSE
+                            y_cnt <= y_cnt + 1;
                             state <= PREPARE;
                         END IF;
+                    ELSE
+                        x_cnt <= x_cnt + 1;
+                        state <= PREPARE;
+                    END IF;
 
-                    WHEN PREPARE =>
-                        gc_we <= '0';
-                        IF x_cnt = 0 THEN
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X, HESSIAN_OUTPUT_ADDR_BITS));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + 1, HESSIAN_OUTPUT_ADDR_BITS));
-                        ELSIF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
-                        ELSE
-                            conv0_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt - 1, HESSIAN_OUTPUT_ADDR_BITS));
-                            conv1_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt + 1, HESSIAN_OUTPUT_ADDR_BITS));
-                        END IF;
-                        state <= WAIT_READ;
-
-                    WHEN WAIT_READ =>
-                        state <= COMPUTE;
-
-                    WHEN COMPUTE =>
-                        IF x_cnt = 0 OR x_cnt = HESSIAN_OUTPUT_X - 1 THEN
-                            gc_calc <= shift_left(conv1_dout_signed - conv0_dout_signed, 1); -- multiplied by 2 for normalization
-                        ELSE
-                            gc_calc <= conv1_dout_signed - conv0_dout_signed;
-                        END IF;
-                        state <= WRITE_OUTPUT;
-
-                    WHEN WRITE_OUTPUT =>
-                        gc_addr <= STD_LOGIC_VECTOR(to_unsigned(y_cnt * HESSIAN_OUTPUT_X + x_cnt, HESSIAN_OUTPUT_ADDR_BITS));
-                        gc_din_signed <= gc_calc;
-                        gc_we <= '1';
-
-                        IF x_cnt = HESSIAN_OUTPUT_X - 1 THEN
-                            x_cnt <= 0;
-                            IF y_cnt = HESSIAN_OUTPUT_Y - 1 THEN
-                                state <= FINISHED;
-                            ELSE
-                                y_cnt <= y_cnt + 1;
-                                state <= PREPARE;
-                            END IF;
-                        ELSE
-                            x_cnt <= x_cnt + 1;
-                            state <= PREPARE;
-                        END IF;
-
-                    WHEN FINISHED =>
-                        gc_we <= '0';
-                        done <= '1';
-                        IF start = '0' THEN
-                            state <= IDLE;
-                        END IF;
-                END CASE;
-            END IF;
+                WHEN FINISHED =>
+                    gc_we <= '0';
+                    done <= '1';
+                    IF start = '0' THEN
+                        state <= IDLE;
+                    END IF;
+            END CASE;
         END IF;
     END PROCESS;
 END Behavioral;
