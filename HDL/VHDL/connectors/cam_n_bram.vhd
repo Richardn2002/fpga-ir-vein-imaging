@@ -7,8 +7,8 @@ USE work.constants;
 ENTITY cam_n_bram IS
     GENERIC (
         INIT_USE_0 : BOOLEAN;
-        OUTPUT_X : NATURAL;
-        OUTPUT_Y : NATURAL;
+        OUTPUT_X : NATURAL := constants.INPUT_X;
+        OUTPUT_Y : NATURAL := constants.INPUT_Y;
         ADDR_BITS : NATURAL := constants.INPUT_ADDR_BITS
     );
     PORT (
@@ -31,17 +31,9 @@ ENTITY cam_n_bram IS
 END ENTITY;
 
 ARCHITECTURE arch OF cam_n_bram IS
-    SIGNAL use_0 : BOOLEAN := INIT_USE_0;
-    SIGNAL use_0_next : BOOLEAN;
     SIGNAL valid_we : STD_LOGIC;
     SIGNAL valid_addr : STD_LOGIC_VECTOR(ADDR_BITS - 1 DOWNTO 0);
 BEGIN
-    -- combinatorial
-    --- broadcast connections
-    bram_d_0 <= cam_d;
-    bram_d_1 <= cam_d;
-    bram_addr_0 <= valid_addr;
-    bram_addr_1 <= valid_addr;
     --- only use addr value when module drives write enable
     PROCESS (cam_we, cam_x, cam_y) BEGIN
         IF cam_we = '1' AND cam_x < OUTPUT_X AND cam_y < OUTPUT_Y THEN
@@ -52,29 +44,24 @@ BEGIN
             valid_addr <= (OTHERS => '0');
         END IF;
     END PROCESS;
-    --- MUX to select BRAM to write to
-    PROCESS (use_0, valid_we) BEGIN
-        IF use_0 THEN
-            bram_we_0 <= valid_we;
-            bram_we_1 <= '0';
-        ELSE
-            bram_we_0 <= '0';
-            bram_we_1 <= valid_we;
-        END IF;
-    END PROCESS;
-    --- swaps on trigger
-    PROCESS (trg, use_0) BEGIN
-        IF trg = '1' THEN
-            use_0_next <= NOT use_0;
-        ELSE
-            use_0_next <= use_0;
-        END IF;
-    END PROCESS;
 
-    -- sequential
-    PROCESS (cam_clk) BEGIN
-        IF rising_edge(cam_clk) THEN
-            use_0 <= use_0_next;
-        END IF;
-    END PROCESS;
+    bram_swapper_w_inst : ENTITY work.bram_swapper_w
+        GENERIC MAP(
+            INIT_USE_0 => INIT_USE_0,
+            ADDR_BITS => ADDR_BITS,
+            DATA_BITS => 8
+        )
+        PORT MAP(
+            clk => cam_clk,
+            trg => trg,
+            we => valid_we,
+            addr => valid_addr,
+            d => cam_d,
+            bram_we_0 => bram_we_0,
+            bram_addr_0 => bram_addr_0,
+            bram_d_0 => bram_d_0,
+            bram_we_1 => bram_we_1,
+            bram_addr_1 => bram_addr_1,
+            bram_d_1 => bram_d_1
+        );
 END ARCHITECTURE;

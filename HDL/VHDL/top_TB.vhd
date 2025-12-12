@@ -23,6 +23,10 @@ ARCHITECTURE arch OF top_TB IS
     SIGNAL vga : STD_LOGIC_VECTOR(5 DOWNTO 0);
 BEGIN
     proj_inst : ENTITY work.proj
+        GENERIC MAP(
+            IS_SIM => TRUE,
+            TEST_INPUT_FILE_0 => "/home/labuser/richardn/Courses/fpga/src/nir/data/HDL_TB/stage00_input.txt"
+        )
         PORT MAP(
             core_clk => core_clk,
             cam_ctrl_clk => cam_ctrl_clk,
@@ -62,11 +66,11 @@ BEGIN
     END PROCESS;
     PROCESS
     BEGIN
-        -- 30 MHz
+        -- 6 MHz
         cam_pclk <= '0';
-        WAIT FOR 16.67 ns;
+        WAIT FOR 83.33 ns;
         cam_pclk <= '1';
-        WAIT FOR 16.67 ns;
+        WAIT FOR 83.33 ns;
     END PROCESS;
     PROCESS
     BEGIN

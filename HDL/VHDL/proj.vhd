@@ -1,9 +1,15 @@
 LIBRARY IEEE;
 USE IEEE.std_logic_1164.ALL;
+USE std.textio.ALL;
+USE IEEE.numeric_std.ALL;
 
 USE work.constants;
 
 ENTITY proj IS
+    GENERIC (
+        CONSTANT IS_SIM : BOOLEAN := FALSE;
+        CONSTANT TEST_INPUT_FILE_0 : STRING := ""
+    );
     PORT (
         core_clk : IN STD_LOGIC;
 
@@ -33,6 +39,7 @@ ENTITY proj IS
 END proj;
 
 ARCHITECTURE arch OF proj IS
+    -- CAMERA INPUT
     SIGNAL cam_frame_writing : STD_LOGIC;
     SIGNAL cam_frame_writing_to_core : STD_LOGIC;
     SIGNAL cam_ram_swap_trg : STD_LOGIC;
@@ -44,12 +51,75 @@ ARCHITECTURE arch OF proj IS
     SIGNAL cam_ram_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
 
     SIGNAL cam_ram_we_0 : STD_LOGIC;
-    SIGNAL cam_ram_addr_0 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL cam_ram_addr_0 : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL cam_ram_d_0 : STD_LOGIC_VECTOR(7 DOWNTO 0);
     SIGNAL cam_ram_we_1 : STD_LOGIC;
-    SIGNAL cam_ram_addr_1 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL cam_ram_addr_1 : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL cam_ram_d_1 : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    -- CAMERA INPUT END
 
+    -- FLOW CTRL
+    SIGNAL clahe_mapping_trg : STD_LOGIC;
+    SIGNAL clahe_mapping_rdy : STD_LOGIC;
+    SIGNAL clahe_output_trg : STD_LOGIC;
+    SIGNAL clahe_output_rdy : STD_LOGIC;
+    SIGNAL hessian_conv_r_trg : STD_LOGIC;
+    SIGNAL hessian_conv_r_rdy : STD_LOGIC;
+    SIGNAL hessian_conv_c_trg : STD_LOGIC;
+    SIGNAL hessian_conv_c_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_r_trg : STD_LOGIC;
+    SIGNAL hessian_grad_r_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_trg : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_trg : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_c_1_trg : STD_LOGIC;
+    SIGNAL hessian_grad_c_1_rdy : STD_LOGIC;
+    SIGNAL hessian_output_trg : STD_LOGIC;
+    SIGNAL hessian_output_rdy : STD_LOGIC;
+
+    SIGNAL clahe_input_ram_swap_trg : STD_LOGIC;
+    SIGNAL clahe_reader_swap_trg : STD_LOGIC;
+    SIGNAL hessian_ram_0_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_0_b_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_1_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_1_b_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_2_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_2_b_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_output_ram_swap_trg : STD_LOGIC;
+    -- FLOW CTRL END
+
+    -- MODULE CONNECTIONS
+    --- 2x input ram to clahe_input_ram_swapper
+    SIGNAL clahe_input_ram_addr_0 : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_input_ram_d_0 : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL clahe_input_ram_addr_1 : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_input_ram_d_1 : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- clahe_input_ram_swapper to clahe_n_bram
+    SIGNAL clahe_input_re : STD_LOGIC;
+    SIGNAL clahe_input_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_input_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- clahe_n_bram to clahe_mapping and clahe_output
+    SIGNAL clahe_mapping_re : STD_LOGIC;
+    SIGNAL clahe_mapping_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_mapping_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL clahe_output_re : STD_LOGIC;
+    SIGNAL clahe_output_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_output_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- hessian output to hessian_output_ram_swapper
+    SIGNAL hessian_output_we : STD_LOGIC;
+    SIGNAL hessian_output_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    --- hessian_output_ram_swapper to 2x output ram
+    SIGNAL hessian_output_ram_we_0 : STD_LOGIC;
+    SIGNAL hessian_output_ram_addr_0 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_ram_d_0 : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    SIGNAL hessian_output_ram_we_1 : STD_LOGIC;
+    SIGNAL hessian_output_ram_addr_1 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_ram_d_1 : STD_LOGIC_VECTOR(1 DOWNTO 0);
+    -- MODULE CONNECTIONS END
+
+    -- VGA OUTPUT
     SIGNAL vga_ram_reading : STD_LOGIC;
     SIGNAL vga_okay_to_swap : STD_LOGIC;
     SIGNAL vga_swap_trg_from_core : STD_LOGIC;
@@ -57,16 +127,20 @@ ARCHITECTURE arch OF proj IS
 
     SIGNAL vga_ram_we_0 : STD_LOGIC;
     SIGNAL vga_ram_addr_0 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
-    SIGNAL vga_ram_d_0 : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL vga_ram_d_0 : STD_LOGIC_VECTOR(1 DOWNTO 0);
     SIGNAL vga_ram_we_1 : STD_LOGIC;
     SIGNAL vga_ram_addr_1 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
-    SIGNAL vga_ram_d_1 : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL vga_ram_d_1 : STD_LOGIC_VECTOR(1 DOWNTO 0);
 
     SIGNAL vga_ram_re : STD_LOGIC;
     SIGNAL vga_ram_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL vga_ram_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    -- VGA OUTPUT END
 BEGIN
     cam_ov7670_ctrl_inst : ENTITY work.cam_ov7670_ctrl
+        GENERIC MAP(
+            IGNORE_I2C_ACK => IS_SIM
+        )
         PORT MAP(
             clk => cam_ctrl_clk,
             rst => cam_rst,
@@ -82,6 +156,34 @@ BEGIN
             core_clk => core_clk,
             cam_frame_writing => cam_frame_writing_to_core,
             cam_ram_swap_trg => cam_ram_swap_trg_from_core,
+
+            clahe_mapping_trg => clahe_mapping_trg,
+            clahe_mapping_rdy => clahe_mapping_rdy,
+            clahe_output_trg => clahe_output_trg,
+            clahe_output_rdy => clahe_output_rdy,
+            hessian_conv_r_trg => hessian_conv_r_trg,
+            hessian_conv_r_rdy => hessian_conv_r_rdy,
+            hessian_conv_c_trg => hessian_conv_c_trg,
+            hessian_conv_c_rdy => hessian_conv_c_rdy,
+            hessian_grad_r_trg => hessian_grad_r_trg,
+            hessian_grad_r_rdy => hessian_grad_r_rdy,
+            hessian_grad_c_0_trg => hessian_grad_c_0_trg,
+            hessian_grad_c_0_rdy => hessian_grad_c_0_rdy,
+            hessian_grad_rr_cc_trg => hessian_grad_rr_cc_trg,
+            hessian_grad_rr_cc_rdy => hessian_grad_rr_cc_rdy,
+            hessian_grad_c_1_trg => hessian_grad_c_1_trg,
+            hessian_grad_c_1_rdy => hessian_grad_c_1_rdy,
+            hessian_output_trg => hessian_output_trg,
+            hessian_output_rdy => hessian_output_rdy,
+
+            clahe_reader_swap_trg => clahe_reader_swap_trg,
+            hessian_ram_0_a_user => hessian_ram_0_a_user,
+            hessian_ram_0_b_user => hessian_ram_0_b_user,
+            hessian_ram_1_a_user => hessian_ram_1_a_user,
+            hessian_ram_1_b_user => hessian_ram_1_b_user,
+            hessian_ram_2_a_user => hessian_ram_2_a_user,
+            hessian_ram_2_b_user => hessian_ram_2_b_user,
+
             vga_okay_to_swap => vga_okay_to_swap,
             vga_ram_swap_trg => vga_swap_trg_from_core
         );
@@ -96,25 +198,88 @@ BEGIN
             ram_swap_from_core => cam_ram_swap_trg_from_core
         );
 
-    cam_vga_inst : ENTITY work.cam_vga
-        PORT MAP(
-            pclk => cam_pclk,
-            vsync => cam_vsync,
-            hsync => cam_hsync,
-            data => cam_d,
-            px_byte => cam_ram_d,
-            px_rdy => cam_ram_we,
-            frame_writing => cam_frame_writing,
-            x => cam_x,
-            y => cam_y
-        );
+    -- for some reason vivado does not like if generate without a label
+    real_cam_input : IF NOT IS_SIM GENERATE
+        cam_vga_inst : ENTITY work.cam_vga
+            PORT MAP(
+                pclk => cam_pclk,
+                vsync => cam_vsync,
+                hsync => cam_hsync,
+                data => cam_d,
+                px_byte => cam_ram_d,
+                px_rdy => cam_ram_we,
+                frame_writing => cam_frame_writing,
+                x => cam_x,
+                y => cam_y
+            );
+    END GENERATE real_cam_input;
+    -- for some reason the formatter does not like if generate else generate
+    test_cam_input : IF IS_SIM GENERATE
+        PROCESS
+            FILE img_file : text OPEN READ_MODE IS TEST_INPUT_FILE_0;
+            VARIABLE ln : line;
+            VARIABLE value : NATURAL;
+            VARIABLE idx : NATURAL := 0;
+            TYPE input_t IS ARRAY (0 TO constants.INPUT_X * constants.INPUT_Y - 1) OF NATURAL;
+            VARIABLE test_input_0 : input_t;
+
+            VARIABLE px_idx : NATURAL;
+            VARIABLE frame_interval_cnt : NATURAL;
+        BEGIN
+            WHILE NOT endfile(img_file) LOOP
+                readline(img_file, ln);
+                read(ln, value);
+                IF idx < constants.INPUT_X * constants.INPUT_Y THEN
+                    test_input_0(idx) := value;
+                ELSE
+                    ASSERT false
+                    REPORT "File has more data than expected input."
+                        SEVERITY error;
+                END IF;
+                idx := idx + 1;
+            END LOOP;
+            IF idx /= constants.INPUT_X * constants.INPUT_Y THEN
+                ASSERT false
+                REPORT "File has less data than expected input."
+                    SEVERITY error;
+            END IF;
+
+            cam_ram_d <= (OTHERS => '0');
+            cam_ram_we <= '0';
+            cam_frame_writing <= '0';
+            cam_x <= 0;
+            cam_y <= 0;
+            WAIT FOR 10 ns;
+
+            WHILE TRUE LOOP
+                px_idx := 0;
+                frame_interval_cnt := 250000;
+
+                WHILE px_idx /= constants.INPUT_X * constants.INPUT_Y LOOP
+                    WAIT UNTIL rising_edge(cam_pclk);
+
+                    cam_ram_d <= STD_LOGIC_VECTOR(to_unsigned(test_input_0(px_idx), 8));
+                    cam_ram_we <= '1';
+                    cam_frame_writing <= '1';
+                    cam_x <= px_idx MOD constants.INPUT_X;
+                    cam_y <= px_idx / constants.INPUT_X;
+
+                    px_idx := px_idx + 1;
+                END LOOP;
+
+                cam_frame_writing <= '0';
+
+                WHILE frame_interval_cnt > 0 LOOP
+                    WAIT UNTIL rising_edge(cam_pclk);
+                    frame_interval_cnt := frame_interval_cnt - 1;
+                END LOOP;
+            END LOOP;
+        END PROCESS;
+    END GENERATE test_cam_input;
 
     cam_n_bram_inst : ENTITY work.cam_n_bram
         GENERIC MAP(
-            INIT_USE_0 => FALSE,
-            OUTPUT_X => constants.HESSIAN_OUTPUT_X,
-            OUTPUT_Y => constants.HESSIAN_OUTPUT_Y,
-            ADDR_BITS => constants.HESSIAN_OUTPUT_ADDR_BITS
+            INIT_USE_0 => FALSE
         )
         PORT MAP(
             cam_clk => cam_pclk,
@@ -131,11 +296,11 @@ BEGIN
             bram_d_1 => cam_ram_d_1
         );
 
-    bram_to_vga_0 : ENTITY work.bram_tdp
+    bram_input_0 : ENTITY work.bram_tdp
         GENERIC MAP(
             DATA_WIDTH => 8,
-            DATA_LEN => constants.HESSIAN_OUTPUT_X * constants.HESSIAN_OUTPUT_Y,
-            ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
+            DATA_LEN => constants.INPUT_X * constants.INPUT_Y,
+            ADDR_WIDTH => constants.INPUT_ADDR_BITS
         )
         PORT MAP(
             clk_a => cam_pclk,
@@ -143,6 +308,122 @@ BEGIN
             we_a => cam_ram_we_0,
             addr_a => cam_ram_addr_0,
             din_a => cam_ram_d_0,
+            dout_a => OPEN,
+            clk_b => core_clk,
+            ce_b => '1',
+            we_b => '0',
+            addr_b => clahe_input_ram_addr_0,
+            din_b => (OTHERS => '0'),
+            dout_b => clahe_input_ram_d_0
+        );
+
+    bram_input_1 : ENTITY work.bram_tdp
+        GENERIC MAP(
+            DATA_WIDTH => 8,
+            DATA_LEN => constants.INPUT_X * constants.INPUT_Y,
+            ADDR_WIDTH => constants.INPUT_ADDR_BITS
+        )
+        PORT MAP(
+            clk_a => cam_pclk,
+            ce_a => '1',
+            we_a => cam_ram_we_1,
+            addr_a => cam_ram_addr_1,
+            din_a => cam_ram_d_1,
+            dout_a => OPEN,
+            clk_b => core_clk,
+            ce_b => '1',
+            we_b => '0',
+            addr_b => clahe_input_ram_addr_1,
+            din_b => (OTHERS => '0'),
+            dout_b => clahe_input_ram_d_1
+        );
+
+    -- swap together with camera, but always point to different ram
+    clahe_input_ram_swap_trg <= cam_ram_swap_trg_from_core;
+    clahe_input_ram_swapper : ENTITY work.bram_swapper_r
+        GENERIC MAP(
+            INIT_USE_0 => TRUE,
+            ADDR_BITS => constants.INPUT_ADDR_BITS,
+            DATA_BITS => 8
+        )
+        PORT MAP(
+            clk => core_clk,
+            trg => clahe_input_ram_swap_trg,
+            re => clahe_input_re,
+            addr => clahe_input_addr,
+            d => clahe_input_d,
+            bram_we_0 => OPEN,
+            bram_addr_0 => clahe_input_ram_addr_0,
+            bram_d_0 => clahe_input_ram_d_0,
+            bram_we_1 => OPEN,
+            bram_addr_1 => clahe_input_ram_addr_1,
+            bram_d_1 => clahe_input_ram_d_1
+        );
+
+    clahe_n_bram_inst : ENTITY work.clahe_n_bram
+        GENERIC MAP(
+            -- flow ctrl will issue a pulse on entering first stage, swapping to mapping correctly
+            -- on entering second stage it will issue another pulse, swapping back
+            INIT_READER_MAPPING => FALSE
+        )
+        PORT MAP(
+            core_clk => core_clk,
+            clahe_reader_swap_trg => clahe_reader_swap_trg,
+            bram_re => clahe_input_re,
+            bram_addr => clahe_input_addr,
+            bram_d => clahe_input_d,
+            clahe_mapping_re => clahe_mapping_re,
+            clahe_mapping_addr => clahe_mapping_addr,
+            clahe_mapping_d => clahe_mapping_d,
+            clahe_output_re => clahe_output_re,
+            clahe_output_addr => clahe_output_addr,
+            clahe_output_d => clahe_output_d
+        );
+
+    clahe_mapping_rdy <= '1';
+    clahe_output_rdy <= '1';
+    hessian_conv_r_rdy <= '1';
+    hessian_conv_c_rdy <= '1';
+    hessian_grad_r_rdy <= '1';
+    hessian_grad_c_0_rdy <= '1';
+    hessian_grad_rr_cc_rdy <= '1';
+    hessian_grad_c_1_rdy <= '1';
+    hessian_output_rdy <= '1';
+
+    -- swap together with camera, but always point to different ram
+    hessian_output_ram_swap_trg <= vga_swap_trg_from_core;
+    hessian_output_ram_swapper : ENTITY work.bram_swapper_w
+        GENERIC MAP(
+            INIT_USE_0 => FALSE,
+            ADDR_BITS => constants.HESSIAN_OUTPUT_ADDR_BITS,
+            DATA_BITS => 2
+        )
+        PORT MAP(
+            clk => core_clk,
+            trg => hessian_output_ram_swap_trg,
+            we => hessian_output_we,
+            addr => hessian_output_addr,
+            d => hessian_output_d(7 DOWNTO 6),
+            bram_we_0 => hessian_output_ram_we_0,
+            bram_addr_0 => hessian_output_ram_addr_0,
+            bram_d_0 => hessian_output_ram_d_0,
+            bram_we_1 => hessian_output_ram_we_1,
+            bram_addr_1 => hessian_output_ram_addr_1,
+            bram_d_1 => hessian_output_ram_d_1
+        );
+
+    bram_to_vga_0 : ENTITY work.bram_tdp
+        GENERIC MAP(
+            DATA_WIDTH => 2,
+            DATA_LEN => constants.HESSIAN_OUTPUT_X * constants.HESSIAN_OUTPUT_Y,
+            ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
+        )
+        PORT MAP(
+            clk_a => cam_pclk,
+            ce_a => '1',
+            we_a => hessian_output_ram_we_0,
+            addr_a => hessian_output_ram_addr_0,
+            din_a => hessian_output_ram_d_0,
             dout_a => OPEN,
             clk_b => vga_pclk,
             ce_b => '1',
@@ -153,16 +434,16 @@ BEGIN
         );
     bram_to_vga_1 : ENTITY work.bram_tdp
         GENERIC MAP(
-            DATA_WIDTH => 8,
+            DATA_WIDTH => 2,
             DATA_LEN => constants.HESSIAN_OUTPUT_X * constants.HESSIAN_OUTPUT_Y,
             ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
         )
         PORT MAP(
             clk_a => cam_pclk,
             ce_a => '1',
-            we_a => cam_ram_we_1,
-            addr_a => cam_ram_addr_1,
-            din_a => cam_ram_d_1,
+            we_a => hessian_output_ram_we_1,
+            addr_a => hessian_output_ram_addr_1,
+            din_a => hessian_output_ram_d_1,
             dout_a => OPEN,
             clk_b => vga_pclk,
             ce_b => '1',
@@ -184,10 +465,10 @@ BEGIN
             vga_d => vga_ram_d,
             bram_we_0 => vga_ram_we_0,
             bram_addr_0 => vga_ram_addr_0,
-            bram_d_0 => vga_ram_d_0,
+            bram_d_0 => vga_ram_d_0 & b"000000",
             bram_we_1 => vga_ram_we_1,
             bram_addr_1 => vga_ram_addr_1,
-            bram_d_1 => vga_ram_d_1
+            bram_d_1 => vga_ram_d_1 & b"000000"
         );
 
     vga_n_core_inst : ENTITY work.vga_n_core

@@ -8,6 +8,7 @@ matplotlib.use("QtAgg")
 
 import numpy as np
 
+TB_OUTPUT_DIR = "../data/HDL_TB/"
 
 # parameters
 
@@ -432,6 +433,24 @@ def load_test_input() -> np.ndarray:
     return img_resized
 
 
+def write_ram_mem_file(name: str, arr: np.ndarray) -> str:
+    """
+    Flatten `arr` row-major and write one integer per line to
+    OUTPUT_DIR/name.txt. Works for uint8 and int16.
+    """
+    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), TB_OUTPUT_DIR)
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, f"{name}.txt")
+
+    flat = arr.flatten()
+    with open(path, "w") as f:
+        for v in flat:
+            f.write(f"{int(v)}\n")
+
+    print(f"[mem-dump] wrote {path} ({flat.size} entries)")
+    return path
+
+
 if __name__ == "__main__":
     # Block RAM usages
 
@@ -493,6 +512,7 @@ if __name__ == "__main__":
                     np.mean(img[4 * y : 4 * y + 4, 4 * x : 4 * x + 4])
                 )
         ram_input = img_resized
+    write_ram_mem_file("stage00_input", ram_input)
 
     for row in range(CLAHE_PATCH_Y_NUM):
         for col in range(CLAHE_PATCH_X_NUM):
@@ -503,9 +523,16 @@ if __name__ == "__main__":
                 ],
                 ram_hist_mapping[row][col],
             )
+    write_ram_mem_file("stage01_hist_mapping", ram_hist_mapping)
+
     CLAHE_output(ram_input, ram_hist_mapping, ram_clahe_output)
+    write_ram_mem_file("stage02_clahe_output", ram_clahe_output)
+
     hessian_conv_r(ram_clahe_output, ram_hessian_0)
+    write_ram_mem_file("stage03_conv_r", ram_hessian_0)
+
     hessian_conv_c(ram_hessian_0, ram_hessian_1)
+    write_ram_mem_file("stage04_conv_c", ram_hessian_1)
 
     plt.subplot(3, 3, 1)
     plt.title("Input")
@@ -523,7 +550,10 @@ if __name__ == "__main__":
     plt.axis("off")
 
     hessian_grad_r(ram_hessian_1, ram_hessian_1, ram_hessian_0)
+    write_ram_mem_file("stage05_grad_r", ram_hessian_0)
+
     hessian_grad_c(ram_hessian_1, ram_hessian_1, ram_hessian_2)
+    write_ram_mem_file("stage06_grad_c", ram_hessian_2)
 
     plt.subplot(3, 3, 4)
     plt.title("gr")
@@ -543,6 +573,8 @@ if __name__ == "__main__":
         ram_hessian_1,
         ram_hessian_3,
     )
+    write_ram_mem_file("stage07_rr_p_cc", ram_hessian_1)
+    write_ram_mem_file("stage08_rr_m_cc", ram_hessian_3)
 
     plt.subplot(3, 3, 6)
     plt.title("(Hrr + Hcc) / 2 / 4")
@@ -555,6 +587,7 @@ if __name__ == "__main__":
     plt.axis("off")
 
     hessian_grad_c(ram_hessian_0, ram_hessian_0, ram_hessian_2)
+    write_ram_mem_file("stage09_rc", ram_hessian_2)
 
     plt.subplot(3, 3, 8)
     plt.title("Hrc")
@@ -562,6 +595,7 @@ if __name__ == "__main__":
     plt.axis("off")
 
     hessian_output(ram_hessian_1, ram_hessian_3, ram_hessian_2, ram_hessian_0)
+    write_ram_mem_file("stage10_hessian_output", ram_hessian_0)
 
     plt.subplot(3, 3, 9)
     plt.title("After Hessian")
