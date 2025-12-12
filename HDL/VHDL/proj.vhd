@@ -56,6 +56,33 @@ ARCHITECTURE arch OF proj IS
     SIGNAL cam_ram_addr_1 : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL cam_ram_d_1 : STD_LOGIC_VECTOR(7 DOWNTO 0);
 
+    SIGNAL clahe_mapping_trg : STD_LOGIC;
+    SIGNAL clahe_mapping_rdy : STD_LOGIC;
+    SIGNAL clahe_output_trg : STD_LOGIC;
+    SIGNAL clahe_output_rdy : STD_LOGIC;
+    SIGNAL hessian_conv_r_trg : STD_LOGIC;
+    SIGNAL hessian_conv_r_rdy : STD_LOGIC;
+    SIGNAL hessian_conv_c_trg : STD_LOGIC;
+    SIGNAL hessian_conv_c_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_r_trg : STD_LOGIC;
+    SIGNAL hessian_grad_r_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_trg : STD_LOGIC;
+    SIGNAL hessian_grad_c_0_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_trg : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_rdy : STD_LOGIC;
+    SIGNAL hessian_grad_c_1_trg : STD_LOGIC;
+    SIGNAL hessian_grad_c_1_rdy : STD_LOGIC;
+    SIGNAL hessian_output_trg : STD_LOGIC;
+    SIGNAL hessian_output_rdy : STD_LOGIC;
+
+    SIGNAL clahe_reader_swap_trg : STD_LOGIC;
+    SIGNAL hessian_ram_0_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_0_b_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_1_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_1_b_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_2_a_user : NATURAL RANGE 0 TO 3;
+    SIGNAL hessian_ram_2_b_user : NATURAL RANGE 0 TO 3;
+
     SIGNAL vga_ram_reading : STD_LOGIC;
     SIGNAL vga_okay_to_swap : STD_LOGIC;
     SIGNAL vga_swap_trg_from_core : STD_LOGIC;
@@ -91,6 +118,34 @@ BEGIN
             core_clk => core_clk,
             cam_frame_writing => cam_frame_writing_to_core,
             cam_ram_swap_trg => cam_ram_swap_trg_from_core,
+
+            clahe_mapping_trg => clahe_mapping_trg,
+            clahe_mapping_rdy => clahe_mapping_rdy,
+            clahe_output_trg => clahe_output_trg,
+            clahe_output_rdy => clahe_output_rdy,
+            hessian_conv_r_trg => hessian_conv_r_trg,
+            hessian_conv_r_rdy => hessian_conv_r_rdy,
+            hessian_conv_c_trg => hessian_conv_c_trg,
+            hessian_conv_c_rdy => hessian_conv_c_rdy,
+            hessian_grad_r_trg => hessian_grad_r_trg,
+            hessian_grad_r_rdy => hessian_grad_r_rdy,
+            hessian_grad_c_0_trg => hessian_grad_c_0_trg,
+            hessian_grad_c_0_rdy => hessian_grad_c_0_rdy,
+            hessian_grad_rr_cc_trg => hessian_grad_rr_cc_trg,
+            hessian_grad_rr_cc_rdy => hessian_grad_rr_cc_rdy,
+            hessian_grad_c_1_trg => hessian_grad_c_1_trg,
+            hessian_grad_c_1_rdy => hessian_grad_c_1_rdy,
+            hessian_output_trg => hessian_output_trg,
+            hessian_output_rdy => hessian_output_rdy,
+
+            clahe_reader_swap_trg => clahe_reader_swap_trg,
+            hessian_ram_0_a_user => hessian_ram_0_a_user,
+            hessian_ram_0_b_user => hessian_ram_0_b_user,
+            hessian_ram_1_a_user => hessian_ram_1_a_user,
+            hessian_ram_1_b_user => hessian_ram_1_b_user,
+            hessian_ram_2_a_user => hessian_ram_2_a_user,
+            hessian_ram_2_b_user => hessian_ram_2_b_user,
+
             vga_okay_to_swap => vga_okay_to_swap,
             vga_ram_swap_trg => vga_swap_trg_from_core
         );
@@ -246,6 +301,16 @@ BEGIN
             din_b => (OTHERS => '0'),
             dout_b => vga_ram_d_1
         );
+
+    clahe_mapping_rdy <= '1';
+    clahe_output_rdy <= '1';
+    hessian_conv_r_rdy <= '1';
+    hessian_conv_c_rdy <= '1';
+    hessian_grad_r_rdy <= '1';
+    hessian_grad_c_0_rdy <= '1';
+    hessian_grad_rr_cc_rdy <= '1';
+    hessian_grad_c_1_rdy <= '1';
+    hessian_output_rdy <= '1';
 
     vga_n_bram_inst : ENTITY work.vga_n_bram
         GENERIC MAP(
