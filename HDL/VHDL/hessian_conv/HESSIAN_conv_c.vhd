@@ -33,7 +33,6 @@ ARCHITECTURE rtl OF HESSIAN_conv_c IS
 
         PIX_REQ,
         PIX_WAIT1,
-        PIX_WAIT2,
 
         WRITE_OUT,
         NEXT_PIXEL,
@@ -138,7 +137,7 @@ BEGIN
                         row_idx := 0;
                 END CASE;
 
-                in_addr := row_idx * IN_X + x;  -- (row_idx, x)
+                in_addr := row_idx * IN_X + x;  
 
                 conv_in_en   <= '1';
                 conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
@@ -194,9 +193,7 @@ BEGIN
             WHEN PIX_WAIT1 =>
                 conv_in_en   <= '1';
                 conv_in_addr <= STD_LOGIC_VECTOR(to_unsigned(in_addr, 13));
-                state_next <= PIX_WAIT2;
-
-            WHEN PIX_WAIT2 =>
+           
                 sum_next <= w0 + w1 + w2 + w3 + w4;
 
                 c := unsigned(conv_in_d);
@@ -210,7 +207,7 @@ BEGIN
                 IF (y + 3) < IN_Y THEN
                     w4_next <= c;
                 ELSE
-                    w4_next <= w3;   
+                    w4_next <= w4;   
                 END IF;
                 state_next <= WRITE_OUT;
 
