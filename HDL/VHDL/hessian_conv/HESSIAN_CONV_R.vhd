@@ -8,22 +8,22 @@ ENTITY HESSIAN_conv_r IS
         trg : IN STD_LOGIC;
         rdy : OUT STD_LOGIC;
 
-        clahe_in_en   : OUT STD_LOGIC;
+        clahe_in_en : OUT STD_LOGIC;
         clahe_in_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
-        clahe_in_d    : IN  STD_LOGIC_VECTOR(7 DOWNTO 0);
+        clahe_in_d : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
 
-        conv_out_en   : OUT STD_LOGIC;
+        conv_out_en : OUT STD_LOGIC;
         conv_out_addr : OUT STD_LOGIC_VECTOR(12 DOWNTO 0);
-        conv_out_d    : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
+        conv_out_d : OUT STD_LOGIC_VECTOR(15 DOWNTO 0)
     );
 END HESSIAN_conv_r;
 
 ARCHITECTURE rtl OF HESSIAN_conv_r IS
 
-    CONSTANT IN_X    : INTEGER := 96;
-    CONSTANT OUT_X   : INTEGER := 90;
-    CONSTANT OUT_Y   : INTEGER := 90;
-    CONSTANT RADIUS  : INTEGER := 3;
+    CONSTANT IN_X : INTEGER := 96;
+    CONSTANT OUT_X : INTEGER := 90;
+    CONSTANT OUT_Y : INTEGER := 90;
+    CONSTANT RADIUS : INTEGER := 3;
 
     TYPE state_t IS (
         IDLE,
@@ -45,10 +45,10 @@ ARCHITECTURE rtl OF HESSIAN_conv_r IS
     SIGNAL x, x_next : INTEGER RANGE 0 TO OUT_X - 1;
     SIGNAL y, y_next : INTEGER RANGE 0 TO OUT_Y - 1;
 
-    SIGNAL w0, w1, w2, w3, w4       : unsigned(7 DOWNTO 0);
+    SIGNAL w0, w1, w2, w3, w4 : unsigned(7 DOWNTO 0);
     SIGNAL w0_next, w1_next, w2_next, w3_next, w4_next : unsigned(7 DOWNTO 0);
 
-    SIGNAL sum_int  : unsigned(15 DOWNTO 0);
+    SIGNAL sum_int : unsigned(15 DOWNTO 0);
     SIGNAL sum_next : unsigned(15 DOWNTO 0);
 
     SIGNAL prime_cnt, prime_cnt_next : INTEGER RANGE 0 TO 4;
@@ -60,10 +60,10 @@ BEGIN
     PROCESS (clk)
     BEGIN
         IF rising_edge(clk) THEN
-            state      <= state_next;
-            x          <= x_next;
-            y          <= y_next;
-            prime_cnt  <= prime_cnt_next;
+            state <= state_next;
+            x <= x_next;
+            y <= y_next;
+            prime_cnt <= prime_cnt_next;
 
             w0 <= w0_next;
             w1 <= w1_next;
@@ -83,20 +83,20 @@ BEGIN
         sum_int,
         clahe_in_d,
         in_addr_reg
-    )
+        )
         VARIABLE out_addr : INTEGER;
-        VARIABLE c        : unsigned(7 DOWNTO 0);
+        VARIABLE c : unsigned(7 DOWNTO 0);
 
-        VARIABLE addr_v   : unsigned(13 DOWNTO 0); 
-        VARIABLE sum_v    : unsigned(15 DOWNTO 0);
+        VARIABLE addr_v : unsigned(13 DOWNTO 0);
+        VARIABLE sum_v : unsigned(15 DOWNTO 0);
     BEGIN
 
         -- defaults
-        state_next      <= state;
+        state_next <= state;
 
-        x_next          <= x;
-        y_next          <= y;
-        prime_cnt_next  <= prime_cnt;
+        x_next <= x;
+        y_next <= y;
+        prime_cnt_next <= prime_cnt;
 
         w0_next <= w0;
         w1_next <= w1;
@@ -106,12 +106,12 @@ BEGIN
 
         sum_next <= sum_int;
 
-        clahe_in_en   <= '0';
+        clahe_in_en <= '0';
         clahe_in_addr <= (OTHERS => '0');
 
-        conv_out_en   <= '0';
+        conv_out_en <= '0';
         conv_out_addr <= (OTHERS => '0');
-        conv_out_d    <= (OTHERS => '0');
+        conv_out_d <= (OTHERS => '0');
 
         rdy <= '0';
 
@@ -121,8 +121,8 @@ BEGIN
 
             WHEN IDLE =>
                 IF trg = '1' THEN
-                    x_next         <= 0;
-                    y_next         <= 0;
+                    x_next <= 0;
+                    y_next <= 0;
                     prime_cnt_next <= 0;
 
                     w0_next <= (OTHERS => '0');
@@ -140,16 +140,16 @@ BEGIN
             WHEN ROW_PRIME_REQ =>
                 addr_v := to_unsigned((y + RADIUS) * IN_X + (prime_cnt + 1), 14);
 
-                clahe_in_en   <= '1';
-                clahe_in_addr <= std_logic_vector(addr_v);
+                clahe_in_en <= '1';
+                clahe_in_addr <= STD_LOGIC_VECTOR(addr_v);
 
-                in_addr_next  <= addr_v;     
-                state_next    <= ROW_PRIME_WAIT1;
+                in_addr_next <= addr_v;
+                state_next <= ROW_PRIME_WAIT1;
 
             WHEN ROW_PRIME_WAIT1 =>
-                clahe_in_en   <= '1';
-                clahe_in_addr <= std_logic_vector(in_addr_reg); 
-                state_next    <= ROW_PRIME_WAIT2;
+                clahe_in_en <= '1';
+                clahe_in_addr <= STD_LOGIC_VECTOR(in_addr_reg);
+                state_next <= ROW_PRIME_WAIT2;
 
             WHEN ROW_PRIME_WAIT2 =>
                 c := unsigned(clahe_in_d);
@@ -167,30 +167,30 @@ BEGIN
                     state_next <= PIX_REQ;
                 ELSE
                     prime_cnt_next <= prime_cnt + 1;
-                    state_next     <= ROW_PRIME_REQ;
+                    state_next <= ROW_PRIME_REQ;
                 END IF;
 
             WHEN PIX_REQ =>
                 addr_v := to_unsigned((y + RADIUS) * IN_X + (x + RADIUS + 3), 14);
 
-                clahe_in_en   <= '1';
-                clahe_in_addr <= std_logic_vector(addr_v);
+                clahe_in_en <= '1';
+                clahe_in_addr <= STD_LOGIC_VECTOR(addr_v);
 
-                in_addr_next  <= addr_v;    
-                state_next    <= PIX_WAIT1;
+                in_addr_next <= addr_v;
+                state_next <= PIX_WAIT1;
 
             WHEN PIX_WAIT1 =>
-                clahe_in_en   <= '1';
-                clahe_in_addr <= std_logic_vector(in_addr_reg); 
-                state_next    <= PIX_WAIT2;
+                clahe_in_en <= '1';
+                clahe_in_addr <= STD_LOGIC_VECTOR(in_addr_reg);
+                state_next <= PIX_WAIT2;
 
             WHEN PIX_WAIT2 =>
-        
+
                 sum_v := resize(w0, 16) +
-                         resize(w1, 16) +
-                         resize(w2, 16) +
-                         resize(w3, 16) +
-                         resize(w4, 16);
+                    resize(w1, 16) +
+                    resize(w2, 16) +
+                    resize(w3, 16) +
+                    resize(w4, 16);
                 sum_next <= sum_v;
 
                 c := unsigned(clahe_in_d);
@@ -206,11 +206,11 @@ BEGIN
             WHEN WRITE_OUT =>
                 out_addr := y * OUT_X + x;
 
-                conv_out_en   <= '1';
-                conv_out_addr <= std_logic_vector(to_unsigned(out_addr, 13));
-                conv_out_d    <= std_logic_vector(sum_int);
+                conv_out_en <= '1';
+                conv_out_addr <= STD_LOGIC_VECTOR(to_unsigned(out_addr, 13));
+                conv_out_d <= STD_LOGIC_VECTOR(sum_int);
 
-                state_next    <= NEXT_PIXEL;
+                state_next <= NEXT_PIXEL;
 
             WHEN NEXT_PIXEL =>
                 IF x = OUT_X - 1 THEN
@@ -219,12 +219,12 @@ BEGIN
                     IF y = OUT_Y - 1 THEN
                         state_next <= DONE;
                     ELSE
-                        y_next         <= y + 1;
+                        y_next <= y + 1;
                         prime_cnt_next <= 0;
-                        state_next     <= ROW_PRIME_REQ;
+                        state_next <= ROW_PRIME_REQ;
                     END IF;
                 ELSE
-                    x_next     <= x + 1;
+                    x_next <= x + 1;
                     state_next <= PIX_REQ;
                 END IF;
 
