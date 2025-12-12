@@ -1,58 +1,57 @@
-library IEEE;
-use IEEE.std_logic_1164.all;
-use IEEE.numeric_std.all;
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+USE IEEE.numeric_std.ALL;
 
-use work.constants;
+--USE work.constants;
 
-entity CLAHE_output is
-    port (
-        clk  : in  std_logic;
-        trg  : in  std_logic;
-        rdy  : out std_logic;
+ENTITY CLAHE_output IS
+    PORT (
+        clk : IN STD_LOGIC;
+        trg : IN STD_LOGIC;
+        rdy : OUT STD_LOGIC;
 
         -- Input image RAM interface
-        img_in_en   : out std_logic;
-        img_in_addr : out std_logic_vector(constants.CLAHE_IMG_ADDR_BITS - 1 downto 0);
-        img_in_d    : in  std_logic_vector(7 downto 0);
+        img_in_en : OUT STD_LOGIC;
+        img_in_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+        img_in_d : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
 
         -- CLAHE mapping LUT RAM interface
-        mapping_in_en   : out std_logic;
-        mapping_in_addr : out std_logic_vector(constants.CLAHE_MAPPING_ADDR_BITS - 1 downto 0);
-        mapping_in_d    : in  std_logic_vector(7 downto 0);
+        mapping_in_en : OUT STD_LOGIC;
+        -- mapping_in_addr : out std_logic_vector(constants.CLAHE_MAPPING_ADDR_BITS - 1 downto 0);
+        mapping_in_addr : OUT STD_LOGIC_VECTOR(11 DOWNTO 0);
+        mapping_in_d : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
 
         -- CLAHE output RAM interface
-        clahe_out_en   : out std_logic;
-        clahe_out_addr : out std_logic_vector(constants.CLAHE_OUTPUT_ADDR_BITS - 1 downto 0);
-        clahe_out_d    : out std_logic_vector(7 downto 0)
+        clahe_out_en : OUT STD_LOGIC;
+        clahe_out_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0);
+        clahe_out_d : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
     );
-end CLAHE_output;
+END CLAHE_output;
 
-
-
-architecture rtl of CLAHE_output is
+ARCHITECTURE rtl OF CLAHE_output IS
 
     --------------------------------------------------------------------
     -- Constants
     --------------------------------------------------------------------
 
-    constant INPUT_X  : integer := constants.INPUT_X;      -- 128
-    constant INPUT_Y  : integer := constants.INPUT_Y;
+    CONSTANT INPUT_X : INTEGER := 128;
+    CONSTANT INPUT_Y : INTEGER := 128;
 
-    constant PATCH_X  : integer := constants.CLAHE_PATCH_X;   -- 32
-    constant PATCH_Y  : integer := constants.CLAHE_PATCH_Y;
-    constant NUM_X    : integer := constants.CLAHE_PATCH_X_NUM;   -- 4
-    constant NUM_Y    : integer := constants.CLAHE_PATCH_Y_NUM;
+    CONSTANT PATCH_X : INTEGER := 32;
+    CONSTANT PATCH_Y : INTEGER := 32;
+    CONSTANT NUM_X : INTEGER := 4;
+    CONSTANT NUM_Y : INTEGER := 4;
 
-    constant OUT_X    : integer := INPUT_X - PATCH_X;     -- 96
-    constant OUT_Y    : integer := INPUT_Y - PATCH_Y;     
+    CONSTANT OUT_X : INTEGER := 96; -- 96
+    CONSTANT OUT_Y : INTEGER := 96;
 
-    constant TILE_LUT_SIZE : integer := 256;
+    CONSTANT TILE_LUT_SIZE : INTEGER := 256;
 
     --------------------------------------------------------------------
     -- State machine
     --------------------------------------------------------------------
 
-    type state_t is (
+    TYPE state_t IS (
         IDLE,
         PIX_REQ, PIX_WAIT,
         TL_REQ, TL_WAIT,
@@ -64,59 +63,59 @@ architecture rtl of CLAHE_output is
         DONE
     );
 
-    signal state, state_next : state_t;
+    SIGNAL state, state_next : state_t;
 
     --------------------------------------------------------------------
     -- Pixel coordinates
     --------------------------------------------------------------------
 
-    signal x, x_next : integer range 0 to OUT_X - 1;
-    signal y, y_next : integer range 0 to OUT_Y - 1;
+    SIGNAL x, x_next : INTEGER RANGE 0 TO OUT_X - 1;
+    SIGNAL y, y_next : INTEGER RANGE 0 TO OUT_Y - 1;
 
     --------------------------------------------------------------------
     -- Pixel + LUT values (registered)
     --------------------------------------------------------------------
 
-    signal pixel_center, pixel_center_next : unsigned(7 downto 0);
-    signal tl, tl_next : unsigned(7 downto 0);
-    signal tr, tr_next : unsigned(7 downto 0);
-    signal bl, bl_next : unsigned(7 downto 0);
-    signal br, br_next : unsigned(7 downto 0);
+    SIGNAL pixel_center, pixel_center_next : unsigned(7 DOWNTO 0);
+    SIGNAL tl, tl_next : unsigned(7 DOWNTO 0);
+    SIGNAL tr, tr_next : unsigned(7 DOWNTO 0);
+    SIGNAL bl, bl_next : unsigned(7 DOWNTO 0);
+    SIGNAL br, br_next : unsigned(7 DOWNTO 0);
 
-begin
+BEGIN
 
     --------------------------------------------------------------------
     -- Sequential logic (state + registers only)
     --------------------------------------------------------------------
-    process(clk)
-    begin
-        if rising_edge(clk) then
+    PROCESS (clk)
+    BEGIN
+        IF rising_edge(clk) THEN
             state <= state_next;
-            x     <= x_next;
-            y     <= y_next;
+            x <= x_next;
+            y <= y_next;
 
             pixel_center <= pixel_center_next;
             tl <= tl_next;
             tr <= tr_next;
             bl <= bl_next;
             br <= br_next;
-        end if;
-    end process;
+        END IF;
+    END PROCESS;
 
-    process(
+    PROCESS (
         state, trg, x, y,
         pixel_center, tl, tr, bl, br,
         img_in_d, mapping_in_d
-    )
-        variable cur_row  : integer;
-        variable cur_col  : integer;
-        variable pix_addr : integer;
-        variable tile_idx : integer;
-        variable map_addr : integer;
-        variable dx, dy, dx_n, dy_n : integer;
-        variable interp : integer;
-        variable out_addr : integer;
-    begin
+        )
+        VARIABLE cur_row : INTEGER;
+        VARIABLE cur_col : INTEGER;
+        VARIABLE pix_addr : INTEGER;
+        VARIABLE tile_idx : INTEGER;
+        VARIABLE map_addr : INTEGER;
+        VARIABLE dx, dy, dx_n, dy_n : INTEGER;
+        VARIABLE interp : INTEGER;
+        VARIABLE out_addr : INTEGER;
+    BEGIN
 
         ----------------------------------------------------------------
         -- Default signal assignments
@@ -132,215 +131,189 @@ begin
         bl_next <= bl;
         br_next <= br;
 
-        img_in_en   <= '0';
-        img_in_addr <= (others => '0');
+        img_in_en <= '0';
+        img_in_addr <= (OTHERS => '0');
 
-        mapping_in_en   <= '0';
-        mapping_in_addr <= (others => '0');
+        mapping_in_en <= '0';
+        mapping_in_addr <= (OTHERS => '0');
 
-        clahe_out_en   <= '0';
-        clahe_out_addr <= (others => '0');
-        clahe_out_d    <= (others => '0');
+        clahe_out_en <= '0';
+        clahe_out_addr <= (OTHERS => '0');
+        clahe_out_d <= (OTHERS => '0');
 
         rdy <= '0';
-
-
         ----------------------------------------------------------------
         -- State Machine
         ----------------------------------------------------------------
-        case state is
-
-
-            ------------------------------------------------------------
-            when IDLE =>
-                if trg = '1' then
+        CASE state IS
+                ------------------------------------------------------------
+            WHEN IDLE =>
+                IF trg = '1' THEN
                     x_next <= 0;
                     y_next <= 0;
                     state_next <= PIX_REQ;
-                end if;
+                END IF;
 
-
-
-            ------------------------------------------------------------
-            -- Request the center pixel
-            ------------------------------------------------------------
-            when PIX_REQ =>
+                ------------------------------------------------------------
+                -- Request the center pixel
+                ------------------------------------------------------------
+            WHEN PIX_REQ =>
                 pix_addr :=
                     (y + PATCH_Y/2) * INPUT_X +
-                     (x + PATCH_X/2);
+                    (x + PATCH_X/2);
 
                 img_in_en <= '1';
-                img_in_addr <= std_logic_vector(
+                img_in_addr <= STD_LOGIC_VECTOR(
                     to_unsigned(pix_addr, img_in_addr'length));
 
                 state_next <= PIX_WAIT;
-
-
-            when PIX_WAIT =>
+            WHEN PIX_WAIT =>
                 -- One cycle later: pixel is ready
                 pixel_center_next <= unsigned(img_in_d);
                 state_next <= TL_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- TL LUT
-            ------------------------------------------------------------
-            when TL_REQ =>
+                ------------------------------------------------------------
+                -- TL LUT
+                ------------------------------------------------------------
+            WHEN TL_REQ =>
                 cur_row := y / PATCH_Y;
                 cur_col := x / PATCH_X;
 
                 tile_idx := cur_row * NUM_X + cur_col;
-                map_addr := tile_idx*TILE_LUT_SIZE +
-                            to_integer(pixel_center);
+                map_addr := tile_idx * TILE_LUT_SIZE +
+                    to_integer(pixel_center);
 
                 mapping_in_en <= '1';
-                mapping_in_addr <= std_logic_vector(
+                mapping_in_addr <= STD_LOGIC_VECTOR(
                     to_unsigned(map_addr, mapping_in_addr'length));
 
                 state_next <= TL_WAIT;
 
-            when TL_WAIT =>
+            WHEN TL_WAIT =>
                 tl_next <= unsigned(mapping_in_d);
                 state_next <= TR_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- TR
-            ------------------------------------------------------------
-            when TR_REQ =>
+                ------------------------------------------------------------
+                -- TR
+                ------------------------------------------------------------
+            WHEN TR_REQ =>
                 cur_row := y / PATCH_Y;
                 cur_col := x / PATCH_X + 1;
 
                 tile_idx := cur_row * NUM_X + cur_col;
-                map_addr := tile_idx*TILE_LUT_SIZE +
-                            to_integer(pixel_center);
+                map_addr := tile_idx * TILE_LUT_SIZE +
+                    to_integer(pixel_center);
 
                 mapping_in_en <= '1';
-                mapping_in_addr <= std_logic_vector(
-                    to_unsigned(map_addr,mapping_in_addr'length));
+                mapping_in_addr <= STD_LOGIC_VECTOR(
+                    to_unsigned(map_addr, mapping_in_addr'length));
 
                 state_next <= TR_WAIT;
 
-            when TR_WAIT =>
+            WHEN TR_WAIT =>
                 tr_next <= unsigned(mapping_in_d);
                 state_next <= BL_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- BL
-            ------------------------------------------------------------
-            when BL_REQ =>
+                ------------------------------------------------------------
+                -- BL
+                ------------------------------------------------------------
+            WHEN BL_REQ =>
                 cur_row := y / PATCH_Y + 1;
                 cur_col := x / PATCH_X;
 
                 tile_idx := cur_row * NUM_X + cur_col;
-                map_addr := tile_idx*TILE_LUT_SIZE +
-                            to_integer(pixel_center);
+                map_addr := tile_idx * TILE_LUT_SIZE +
+                    to_integer(pixel_center);
 
                 mapping_in_en <= '1';
-                mapping_in_addr <= std_logic_vector(
-                    to_unsigned(map_addr,mapping_in_addr'length));
+                mapping_in_addr <= STD_LOGIC_VECTOR(
+                    to_unsigned(map_addr, mapping_in_addr'length));
 
                 state_next <= BL_WAIT;
 
-            when BL_WAIT =>
+            WHEN BL_WAIT =>
                 bl_next <= unsigned(mapping_in_d);
                 state_next <= BR_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- BR
-            ------------------------------------------------------------
-            when BR_REQ =>
+                ------------------------------------------------------------
+                -- BR
+                ------------------------------------------------------------
+            WHEN BR_REQ =>
                 cur_row := y / PATCH_Y + 1;
                 cur_col := x / PATCH_X + 1;
 
                 tile_idx := cur_row * NUM_X + cur_col;
-                map_addr := tile_idx*TILE_LUT_SIZE +
-                            to_integer(pixel_center);
+                map_addr := tile_idx * TILE_LUT_SIZE +
+                    to_integer(pixel_center);
 
                 mapping_in_en <= '1';
-                mapping_in_addr <= std_logic_vector(
-                    to_unsigned(map_addr,mapping_in_addr'length));
+                mapping_in_addr <= STD_LOGIC_VECTOR(
+                    to_unsigned(map_addr, mapping_in_addr'length));
 
                 state_next <= BR_WAIT;
 
-            when BR_WAIT =>
+            WHEN BR_WAIT =>
                 br_next <= unsigned(mapping_in_d);
                 state_next <= COMPUTE;
 
+                ------------------------------------------------------------
+                -- Bilinear interpolation
+                ------------------------------------------------------------
+            WHEN COMPUTE =>
 
-
-            ------------------------------------------------------------
-            -- Bilinear interpolation
-            ------------------------------------------------------------
-            when COMPUTE =>
-
-                dx := x mod PATCH_X;
-                dy := y mod PATCH_Y;
+                dx := x MOD PATCH_X;
+                dy := y MOD PATCH_Y;
                 dx_n := PATCH_X - 1 - dx;
                 dy_n := PATCH_Y - 1 - dy;
 
                 interp :=
                     (to_integer(tl) * dx_n * dy_n +
-                     to_integer(tr) * dx   * dy_n +
-                     to_integer(bl) * dx_n * dy   +
-                     to_integer(br) * dx   * dy)
+                    to_integer(tr) * dx * dy_n +
+                    to_integer(bl) * dx_n * dy +
+                    to_integer(br) * dx * dy)
                     / PATCH_X / PATCH_Y;
 
-                if interp < 0 then
+                IF interp < 0 THEN
                     interp := 0;
-                elsif interp > 255 then
+                ELSIF interp > 255 THEN
                     interp := 255;
-                end if;
+                END IF;
 
                 out_addr := y * OUT_X + x;
 
                 clahe_out_en <= '1';
-                clahe_out_addr <= std_logic_vector(
+                clahe_out_addr <= STD_LOGIC_VECTOR(
                     to_unsigned(out_addr, clahe_out_addr'length));
-                clahe_out_d <= std_logic_vector(
+                clahe_out_d <= STD_LOGIC_VECTOR(
                     to_unsigned(interp, 8));
 
                 state_next <= WRITE_OUT;
-
-
-
-
-            ------------------------------------------------------------
-            -- Move to next pixel
-            ------------------------------------------------------------
-            when WRITE_OUT =>
-                if x = OUT_X - 1 then
+                ------------------------------------------------------------
+                -- Move to next pixel
+                ------------------------------------------------------------
+            WHEN WRITE_OUT =>
+                IF x = OUT_X - 1 THEN
                     x_next <= 0;
 
-                    if y = OUT_Y - 1 then
+                    IF y = OUT_Y - 1 THEN
                         state_next <= DONE;
-                    else
+                    ELSE
                         y_next <= y + 1;
                         state_next <= PIX_REQ;
-                    end if;
+                    END IF;
 
-                else
+                ELSE
                     x_next <= x + 1;
                     state_next <= PIX_REQ;
-                end if;
+                END IF;
 
-
-
-            ------------------------------------------------------------
-            when DONE =>
+                ------------------------------------------------------------
+            WHEN DONE =>
                 rdy <= '1';
-                if trg = '0' then
+                IF trg = '0' THEN
                     state_next <= IDLE;
-                end if;
+                END IF;
+        END CASE;
+    END PROCESS;
 
-
-        end case;
-    end process;
-
-end rtl;
+END rtl;
