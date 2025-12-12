@@ -100,12 +100,35 @@ ARCHITECTURE arch OF proj IS
     SIGNAL clahe_input_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL clahe_input_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
     --- clahe_n_bram to clahe_mapping and clahe_output
-    SIGNAL clahe_mapping_re : STD_LOGIC;
-    SIGNAL clahe_mapping_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
-    SIGNAL clahe_mapping_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
-    SIGNAL clahe_output_re : STD_LOGIC;
-    SIGNAL clahe_output_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
-    SIGNAL clahe_output_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL clahe_mapping_input_re : STD_LOGIC;
+    SIGNAL clahe_mapping_input_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_mapping_input_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL clahe_output_input_re : STD_LOGIC;
+    SIGNAL clahe_output_input_addr : STD_LOGIC_VECTOR(constants.INPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_output_input_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- clahe_mapping to bram_hist_mapping
+    SIGNAL clahe_mapping_hist_mapping_wen : STD_LOGIC;
+    SIGNAL clahe_mapping_hist_mapping_ren : STD_LOGIC;
+    SIGNAL clahe_mapping_hist_mapping_we : STD_LOGIC;
+    SIGNAL clahe_mapping_hist_mapping_addr : STD_LOGIC_VECTOR(constants.CLAHE_MAPPING_ADDR_BITS_ALL_PATCHES - 1 DOWNTO 0);
+    SIGNAL clahe_mapping_hist_mapping_addr_valid : STD_LOGIC_VECTOR(constants.CLAHE_MAPPING_ADDR_BITS_ALL_PATCHES - 1 DOWNTO 0);
+    SIGNAL clahe_mapping_hist_mapping_din : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL clahe_mapping_hist_mapping_dout : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- bram_hist_mapping to clahe_output
+    SIGNAL clahe_output_hist_mapping_re : STD_LOGIC;
+    SIGNAL clahe_output_hist_mapping_addr : STD_LOGIC_VECTOR(constants.CLAHE_MAPPING_ADDR_BITS_ALL_PATCHES - 1 DOWNTO 0);
+    SIGNAL clahe_output_hist_mapping_addr_valid : STD_LOGIC_VECTOR(constants.CLAHE_MAPPING_ADDR_BITS_ALL_PATCHES - 1 DOWNTO 0);
+    SIGNAL clahe_output_hist_mapping_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- clahe_output to bram_clahe_output
+    SIGNAL clahe_output_clahe_output_we : STD_LOGIC;
+    SIGNAL clahe_output_clahe_output_addr : STD_LOGIC_VECTOR(constants.CLAHE_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_output_clahe_output_addr_valid : STD_LOGIC_VECTOR(constants.CLAHE_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL clahe_output_clahe_output_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    --- bram_clahe_output to hessian_conv_r
+    SIGNAL hessian_conv_r_clahe_output_re : STD_LOGIC;
+    SIGNAL hessian_conv_r_clahe_output_addr : STD_LOGIC_VECTOR(constants.CLAHE_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_conv_r_clahe_output_addr_valid : STD_LOGIC_VECTOR(constants.CLAHE_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_conv_r_clahe_output_d : STD_LOGIC_VECTOR(7 DOWNTO 0);
     --- hessian output to hessian_output_ram_swapper
     SIGNAL hessian_output_we : STD_LOGIC;
     SIGNAL hessian_output_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
@@ -372,16 +395,101 @@ BEGIN
             bram_re => clahe_input_re,
             bram_addr => clahe_input_addr,
             bram_d => clahe_input_d,
-            clahe_mapping_re => clahe_mapping_re,
-            clahe_mapping_addr => clahe_mapping_addr,
-            clahe_mapping_d => clahe_mapping_d,
-            clahe_output_re => clahe_output_re,
-            clahe_output_addr => clahe_output_addr,
-            clahe_output_d => clahe_output_d
+            clahe_mapping_re => clahe_mapping_input_re,
+            clahe_mapping_addr => clahe_mapping_input_addr,
+            clahe_mapping_d => clahe_mapping_input_d,
+            clahe_output_re => clahe_output_input_re,
+            clahe_output_addr => clahe_output_input_addr,
+            clahe_output_d => clahe_output_input_d
         );
 
-    clahe_mapping_rdy <= '1';
-    clahe_output_rdy <= '1';
+    clahe_mapping_hist_mapping_we <= clahe_mapping_hist_mapping_wen;
+    clahe_mapping_hist_mapping_addr_valid <= clahe_mapping_hist_mapping_addr WHEN (clahe_mapping_hist_mapping_wen OR clahe_mapping_hist_mapping_ren) = '1'
+        ELSE
+        (OTHERS => '0');
+    clahe_mapping : ENTITY work.CLAHE_controller
+        PORT MAP(
+            clk => core_clk,
+            start => clahe_mapping_trg,
+            done => clahe_mapping_rdy,
+            img_in_en => clahe_mapping_input_re,
+            img_in_addr => clahe_mapping_input_addr,
+            img_in_d => clahe_mapping_input_d,
+            mapping_ren => clahe_mapping_hist_mapping_ren,
+            mapping_wen => clahe_mapping_hist_mapping_wen,
+            mapping_addr => clahe_mapping_hist_mapping_addr,
+            mapping_din => clahe_mapping_hist_mapping_din,
+            mapping_dout => clahe_mapping_hist_mapping_dout
+        );
+
+    bram_hist_mapping : ENTITY work.bram_tdp
+        GENERIC MAP(
+            DATA_WIDTH => 8,
+            DATA_LEN => constants.CLAHE_MAPPING_LEN_ALL_PATCHES,
+            ADDR_WIDTH => constants.CLAHE_MAPPING_ADDR_BITS_ALL_PATCHES
+        )
+        PORT MAP(
+            clk_a => core_clk,
+            ce_a => '1',
+            we_a => clahe_mapping_hist_mapping_we,
+            addr_a => clahe_mapping_hist_mapping_addr_valid,
+            din_a => clahe_mapping_hist_mapping_dout,
+            dout_a => clahe_mapping_hist_mapping_din,
+            clk_b => core_clk,
+            ce_b => '1',
+            we_b => '0',
+            addr_b => clahe_output_hist_mapping_addr_valid,
+            din_b => (OTHERS => '0'),
+            dout_b => clahe_output_hist_mapping_d
+        );
+
+    clahe_output_hist_mapping_addr_valid <= clahe_output_hist_mapping_addr WHEN clahe_output_hist_mapping_re = '1'
+        ELSE
+        (OTHERS => '0');
+    clahe_output : ENTITY work.CLAHE_output
+        PORT MAP(
+            clk => core_clk,
+            trg => clahe_output_trg,
+            rdy => clahe_output_rdy,
+            img_in_en => clahe_output_input_re,
+            img_in_addr => clahe_output_input_addr,
+            img_in_d => clahe_output_input_d,
+            mapping_in_en => clahe_output_hist_mapping_re,
+            mapping_in_addr => clahe_output_hist_mapping_addr,
+            mapping_in_d => clahe_output_hist_mapping_d,
+            clahe_out_en => clahe_output_clahe_output_we,
+            clahe_out_addr => clahe_output_clahe_output_addr,
+            clahe_out_d => clahe_output_clahe_output_d
+        );
+    clahe_output_clahe_output_addr_valid <= clahe_output_clahe_output_addr WHEN clahe_output_clahe_output_we = '1'
+        ELSE
+        (OTHERS => '0');
+
+    bram_clahe_output : ENTITY work.bram_tdp
+        GENERIC MAP(
+            DATA_WIDTH => 8,
+            DATA_LEN => constants.CLAHE_OUTPUT_LEN,
+            ADDR_WIDTH => constants.CLAHE_OUTPUT_ADDR_BITS
+        )
+        PORT MAP(
+            clk_a => core_clk,
+            ce_a => '1',
+            we_a => clahe_output_clahe_output_we,
+            addr_a => clahe_output_clahe_output_addr_valid,
+            din_a => clahe_output_clahe_output_d,
+            dout_a => OPEN,
+            clk_b => core_clk,
+            ce_b => '1',
+            we_b => '0',
+            addr_b => hessian_conv_r_clahe_output_addr_valid,
+            din_b => (OTHERS => '0'),
+            dout_b => hessian_conv_r_clahe_output_d
+        );
+
+    hessian_conv_r_clahe_output_addr_valid <= hessian_conv_r_clahe_output_addr WHEN hessian_conv_r_clahe_output_re = '1'
+        ELSE
+        (OTHERS => '0');
+
     hessian_conv_r_rdy <= '1';
     hessian_conv_c_rdy <= '1';
     hessian_grad_r_rdy <= '1';
