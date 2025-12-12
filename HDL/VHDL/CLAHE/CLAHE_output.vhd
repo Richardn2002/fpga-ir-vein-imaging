@@ -2,8 +2,6 @@ library IEEE;
 use IEEE.std_logic_1164.all;
 use IEEE.numeric_std.all;
 
-use work.constants;
-
 entity CLAHE_output is
     port (
         clk  : in  std_logic;
@@ -12,17 +10,17 @@ entity CLAHE_output is
 
         -- Input image RAM interface
         img_in_en   : out std_logic;
-        img_in_addr : out std_logic_vector(constants.CLAHE_IMG_ADDR_BITS - 1 downto 0);
+        img_in_addr : out std_logic_vector(13 downto 0);
         img_in_d    : in  std_logic_vector(7 downto 0);
 
         -- CLAHE mapping LUT RAM interface
         mapping_in_en   : out std_logic;
-        mapping_in_addr : out std_logic_vector(constants.CLAHE_MAPPING_ADDR_BITS - 1 downto 0);
+        mapping_in_addr : out std_logic_vector(11 downto 0);
         mapping_in_d    : in  std_logic_vector(7 downto 0);
 
         -- CLAHE output RAM interface
         clahe_out_en   : out std_logic;
-        clahe_out_addr : out std_logic_vector(constants.CLAHE_OUTPUT_ADDR_BITS - 1 downto 0);
+        clahe_out_addr : out std_logic_vector(13 downto 0);
         clahe_out_d    : out std_logic_vector(7 downto 0)
     );
 end CLAHE_output;
@@ -31,27 +29,20 @@ end CLAHE_output;
 
 architecture rtl of CLAHE_output is
 
-    --------------------------------------------------------------------
-    -- Constants
-    --------------------------------------------------------------------
 
-    constant INPUT_X  : integer := constants.INPUT_X;      -- 128
-    constant INPUT_Y  : integer := constants.INPUT_Y;
+    constant INPUT_X  : integer := 128;      -- 128
+    constant INPUT_Y  : integer := 128;
 
-    constant PATCH_X  : integer := constants.CLAHE_PATCH_X;   -- 32
-    constant PATCH_Y  : integer := constants.CLAHE_PATCH_Y;
-    constant NUM_X    : integer := constants.CLAHE_PATCH_X_NUM;   -- 4
-    constant NUM_Y    : integer := constants.CLAHE_PATCH_Y_NUM;
+    constant PATCH_X  : integer := 32;   -- 32
+    constant PATCH_Y  : integer := 32;
+    constant NUM_X    : integer := 4;   -- 4
+    constant NUM_Y    : integer := 4;
 
-    constant OUT_X    : integer := INPUT_X - PATCH_X;     -- 96
-    constant OUT_Y    : integer := INPUT_Y - PATCH_Y;     
+    constant OUT_X    : integer := 96;     -- 96
+    constant OUT_Y    : integer := 96;     
 
     constant TILE_LUT_SIZE : integer := 256;
-
-    --------------------------------------------------------------------
-    -- State machine
-    --------------------------------------------------------------------
-
+    
     type state_t is (
         IDLE,
         PIX_REQ, PIX_WAIT,
@@ -65,17 +56,8 @@ architecture rtl of CLAHE_output is
     );
 
     signal state, state_next : state_t;
-
-    --------------------------------------------------------------------
-    -- Pixel coordinates
-    --------------------------------------------------------------------
-
     signal x, x_next : integer range 0 to OUT_X - 1;
     signal y, y_next : integer range 0 to OUT_Y - 1;
-
-    --------------------------------------------------------------------
-    -- Pixel + LUT values (registered)
-    --------------------------------------------------------------------
 
     signal pixel_center, pixel_center_next : unsigned(7 downto 0);
     signal tl, tl_next : unsigned(7 downto 0);
@@ -85,9 +67,6 @@ architecture rtl of CLAHE_output is
 
 begin
 
-    --------------------------------------------------------------------
-    -- Sequential logic (state + registers only)
-    --------------------------------------------------------------------
     process(clk)
     begin
         if rising_edge(clk) then
@@ -118,9 +97,6 @@ begin
         variable out_addr : integer;
     begin
 
-        ----------------------------------------------------------------
-        -- Default signal assignments
-        ----------------------------------------------------------------
         state_next <= state;
 
         x_next <= x;
@@ -145,13 +121,8 @@ begin
         rdy <= '0';
 
 
-        ----------------------------------------------------------------
-        -- State Machine
-        ----------------------------------------------------------------
         case state is
 
-
-            ------------------------------------------------------------
             when IDLE =>
                 if trg = '1' then
                     x_next <= 0;
@@ -159,11 +130,6 @@ begin
                     state_next <= PIX_REQ;
                 end if;
 
-
-
-            ------------------------------------------------------------
-            -- Request the center pixel
-            ------------------------------------------------------------
             when PIX_REQ =>
                 pix_addr :=
                     (y + PATCH_Y/2) * INPUT_X +
@@ -177,15 +143,9 @@ begin
 
 
             when PIX_WAIT =>
-                -- One cycle later: pixel is ready
                 pixel_center_next <= unsigned(img_in_d);
                 state_next <= TL_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- TL LUT
-            ------------------------------------------------------------
             when TL_REQ =>
                 cur_row := y / PATCH_Y;
                 cur_col := x / PATCH_X;
@@ -204,11 +164,6 @@ begin
                 tl_next <= unsigned(mapping_in_d);
                 state_next <= TR_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- TR
-            ------------------------------------------------------------
             when TR_REQ =>
                 cur_row := y / PATCH_Y;
                 cur_col := x / PATCH_X + 1;
@@ -227,11 +182,6 @@ begin
                 tr_next <= unsigned(mapping_in_d);
                 state_next <= BL_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- BL
-            ------------------------------------------------------------
             when BL_REQ =>
                 cur_row := y / PATCH_Y + 1;
                 cur_col := x / PATCH_X;
@@ -250,11 +200,6 @@ begin
                 bl_next <= unsigned(mapping_in_d);
                 state_next <= BR_REQ;
 
-
-
-            ------------------------------------------------------------
-            -- BR
-            ------------------------------------------------------------
             when BR_REQ =>
                 cur_row := y / PATCH_Y + 1;
                 cur_col := x / PATCH_X + 1;
@@ -273,11 +218,6 @@ begin
                 br_next <= unsigned(mapping_in_d);
                 state_next <= COMPUTE;
 
-
-
-            ------------------------------------------------------------
-            -- Bilinear interpolation
-            ------------------------------------------------------------
             when COMPUTE =>
 
                 dx := x mod PATCH_X;
@@ -309,11 +249,6 @@ begin
                 state_next <= WRITE_OUT;
 
 
-
-
-            ------------------------------------------------------------
-            -- Move to next pixel
-            ------------------------------------------------------------
             when WRITE_OUT =>
                 if x = OUT_X - 1 then
                     x_next <= 0;
@@ -331,8 +266,6 @@ begin
                 end if;
 
 
-
-            ------------------------------------------------------------
             when DONE =>
                 rdy <= '1';
                 if trg = '0' then
