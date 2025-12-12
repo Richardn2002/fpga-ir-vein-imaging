@@ -3,6 +3,9 @@ USE IEEE.std_logic_1164.ALL;
 USE IEEE.numeric_std.ALL;
 
 ENTITY CLAHE_mappings IS
+    GENERIC (
+        PATCH_IDX : NATURAL := 0 -- Which patch this instance handles (0-15)
+    );
     PORT (
         clk : IN STD_LOGIC;
         trg : IN STD_LOGIC;
@@ -10,13 +13,13 @@ ENTITY CLAHE_mappings IS
 
         -- Image RAM Interface
         img_in_en : OUT STD_LOGIC;
-        img_in_addr : OUT STD_LOGIC_VECTOR(9 DOWNTO 0);
+        img_in_addr : OUT STD_LOGIC_VECTOR(13 DOWNTO 0); -- Extended for 128*128
         img_in_d : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
 
         -- Histogram/Mapping RAM Interface
         hist_mapping_inout_ren : OUT STD_LOGIC;
         hist_mapping_inout_wen : OUT STD_LOGIC;
-        hist_mapping_inout_addr : OUT STD_LOGIC_VECTOR(7 DOWNTO 0);
+        hist_mapping_inout_addr : OUT STD_LOGIC_VECTOR(11 DOWNTO 0); -- 12 bits for 4096 addresses
         hist_mapping_inout_din : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
         hist_mapping_inout_dout : OUT STD_LOGIC_VECTOR(7 DOWNTO 0)
     );
@@ -26,20 +29,25 @@ ARCHITECTURE arch OF CLAHE_mappings IS
     CONSTANT CLAHE_PATCH_X : NATURAL := 32;
     CONSTANT CLAHE_PATCH_Y : NATURAL := 32;
     CONSTANT CLAHE_CLIP_LIMIT : NATURAL := 10;
-    -- PATCH_SIZE is 1024
+    CONSTANT INPUT_WIDTH : NATURAL := 128;
+
+    -- Calculate patch position from PATCH_IDX
+    CONSTANT PATCH_X_OFFSET : NATURAL := (PATCH_IDX MOD 4) * 32; -- 0, 32, 64, 96
+    CONSTANT PATCH_Y_OFFSET : NATURAL := (PATCH_IDX / 4) * 32; -- 0, 32, 64, 96
+    CONSTANT PATCH_BASE_ADDR : NATURAL := PATCH_IDX * 256; -- Base address in mapping RAM
 
     TYPE state_type IS (
         IDLE,
         INIT_HIST_WRITE,
         READ_PIXEL_ADDR,
-        READ_PIXEL_WAIT, -- Explicit Wait for RAM
+        READ_PIXEL_WAIT,
         READ_HIST_ADDR,
-        READ_HIST_WAIT, -- Explicit Wait for RAM
+        READ_HIST_WAIT,
         UPDATE_HIST_CHECK,
         UPDATE_HIST_WRITE,
         CHECK_LOOP,
         REDIST_READ_ADDR,
-        REDIST_READ_WAIT, -- Explicit Wait for RAM
+        REDIST_READ_WAIT,
         CALC_MAPPING,
         WRITE_MAPPING,
         DONE
@@ -61,10 +69,10 @@ ARCHITECTURE arch OF CLAHE_mappings IS
     -- Output Buffers
     SIGNAL rdy_next : STD_LOGIC;
     SIGNAL img_in_en_next : STD_LOGIC;
-    SIGNAL img_in_addr_next : STD_LOGIC_VECTOR(9 DOWNTO 0);
+    SIGNAL img_in_addr_next : STD_LOGIC_VECTOR(13 DOWNTO 0);
     SIGNAL hist_mapping_inout_ren_next : STD_LOGIC;
     SIGNAL hist_mapping_inout_wen_next : STD_LOGIC;
-    SIGNAL hist_mapping_inout_addr_next : STD_LOGIC_VECTOR(7 DOWNTO 0);
+    SIGNAL hist_mapping_inout_addr_next : STD_LOGIC_VECTOR(11 DOWNTO 0);
     SIGNAL hist_mapping_inout_dout_next : STD_LOGIC_VECTOR(7 DOWNTO 0);
 
 BEGIN
@@ -105,6 +113,8 @@ BEGIN
     comb_process : PROCESS (state, trg, img_in_d, hist_mapping_inout_din,
         x_coord, y_coord, hist_idx, pixel_value, hist_value,
         excess, redist_val, accumulator, s_normed)
+        VARIABLE img_addr : INTEGER;
+        VARIABLE hist_addr : INTEGER;
     BEGIN
         -- Defaults
         state_next <= state;
@@ -139,7 +149,8 @@ BEGIN
                 --------------------------------------------------------------------
             WHEN INIT_HIST_WRITE =>
                 hist_mapping_inout_wen_next <= '1';
-                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(hist_idx);
+                hist_addr := PATCH_BASE_ADDR + to_integer(hist_idx);
+                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(to_unsigned(hist_addr, 12));
                 hist_mapping_inout_dout_next <= (OTHERS => '0');
 
                 IF hist_idx = 255 THEN
@@ -156,7 +167,10 @@ BEGIN
                 --------------------------------------------------------------------
             WHEN READ_PIXEL_ADDR =>
                 img_in_en_next <= '1';
-                img_in_addr_next <= STD_LOGIC_VECTOR(y_coord & x_coord);
+                -- Calculate absolute address: (PATCH_Y_OFFSET + y_coord) * 128 + (PATCH_X_OFFSET + x_coord)
+                img_addr := (PATCH_Y_OFFSET + to_integer(y_coord)) * INPUT_WIDTH +
+                    (PATCH_X_OFFSET + to_integer(x_coord));
+                img_in_addr_next <= STD_LOGIC_VECTOR(to_unsigned(img_addr, 14));
                 state_next <= READ_PIXEL_WAIT;
 
             WHEN READ_PIXEL_WAIT =>
@@ -169,7 +183,8 @@ BEGIN
 
                 -- Read existing count from Histogram RAM
                 hist_mapping_inout_ren_next <= '1';
-                hist_mapping_inout_addr_next <= img_in_d;
+                hist_addr := PATCH_BASE_ADDR + to_integer(unsigned(img_in_d));
+                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(to_unsigned(hist_addr, 12));
                 state_next <= READ_HIST_WAIT;
 
             WHEN READ_HIST_WAIT =>
@@ -187,7 +202,8 @@ BEGIN
 
             WHEN UPDATE_HIST_WRITE =>
                 hist_mapping_inout_wen_next <= '1';
-                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(pixel_value);
+                hist_addr := PATCH_BASE_ADDR + to_integer(pixel_value);
+                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(to_unsigned(hist_addr, 12));
 
                 -- Strict Python Match: "else: hist[pixel] += 1"
                 IF hist_value = (CLAHE_CLIP_LIMIT - 2) THEN
@@ -206,7 +222,6 @@ BEGIN
                         hist_idx_next <= (OTHERS => '0');
 
                         -- Strict Python Match: "redist = excess // 256"
-                        -- Truncates remainder (integer division)
                         redist_val_next <= excess(15 DOWNTO 8);
                     ELSE
                         y_coord_next <= y_coord + 1;
@@ -222,7 +237,8 @@ BEGIN
                 --------------------------------------------------------------------
             WHEN REDIST_READ_ADDR =>
                 hist_mapping_inout_ren_next <= '1';
-                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(hist_idx);
+                hist_addr := PATCH_BASE_ADDR + to_integer(hist_idx);
+                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(to_unsigned(hist_addr, 12));
                 state_next <= REDIST_READ_WAIT;
 
             WHEN REDIST_READ_WAIT =>
@@ -230,16 +246,14 @@ BEGIN
 
             WHEN CALC_MAPPING =>
                 -- Python: "hist[i] += redist" AND "s += hist[i]"
-                -- Equivalent VHDL: Add redist to current bin, then add result to accumulator
-
-                -- 1. Update accumulator
+                -- Update accumulator with current bin + redistribution
                 accumulator_next <= accumulator + resize(unsigned(hist_mapping_inout_din), 32) + resize(redist_val, 32);
-
                 state_next <= WRITE_MAPPING;
 
             WHEN WRITE_MAPPING =>
                 hist_mapping_inout_wen_next <= '1';
-                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(hist_idx);
+                hist_addr := PATCH_BASE_ADDR + to_integer(hist_idx);
+                hist_mapping_inout_addr_next <= STD_LOGIC_VECTOR(to_unsigned(hist_addr, 12));
 
                 -- Write normalized value (calculated concurrently)
                 IF s_normed > 255 THEN
@@ -257,7 +271,9 @@ BEGIN
 
             WHEN DONE =>
                 rdy_next <= '1';
-                state_next <= IDLE;
+                IF trg = '0' THEN
+                    state_next <= IDLE;
+                END IF;
 
             WHEN OTHERS =>
                 state_next <= IDLE;
