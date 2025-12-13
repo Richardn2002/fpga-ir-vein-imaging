@@ -239,7 +239,7 @@ BEGIN
                 hessian_ram_0_a_user <= 1;
                 hessian_ram_0_b_user <= 2;
                 hessian_ram_2_a_user <= 0;
-                IF hessian_grad_c_1_rdy <= '1' THEN
+                IF hessian_grad_c_1_rdy = '1' THEN
                     s_next <= HESSIAN_OUTPUT;
                 END IF;
 
