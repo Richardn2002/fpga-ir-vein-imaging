@@ -601,7 +601,6 @@ BEGIN
     hessian_grad_rr_cc : ENTITY work.hessian_grad_rr_cc
         PORT MAP(
             clk => core_clk,
-            rst => '0',
             start => hessian_grad_rr_cc_trg,
             done => hessian_grad_rr_cc_rdy,
             gr0_addr => hessian_grad_rr_cc_ram_0_a_addr,
