@@ -154,6 +154,21 @@ ARCHITECTURE arch OF proj IS
     SIGNAL hessian_grad_c_0_ram_2_we : STD_LOGIC;
     SIGNAL hessian_grad_c_0_ram_2_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL hessian_grad_c_0_ram_2_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    --- hessian_grad_rr_cc
+    SIGNAL hessian_grad_rr_cc_ram_0_a_re : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_0_a_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_0_b_re : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_0_b_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_2_a_re : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_2_a_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_2_b_re : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_2_b_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_1_we : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_1_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_1_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_3_we : STD_LOGIC;
+    SIGNAL hessian_grad_rr_cc_ram_3_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_grad_rr_cc_ram_3_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
     --- shared outputs of bram_hessian_0/1/2
     SIGNAL ram_0_dout_a : STD_LOGIC_VECTOR(15 DOWNTO 0);
     SIGNAL ram_0_dout_b : STD_LOGIC_VECTOR(15 DOWNTO 0);
@@ -579,7 +594,32 @@ BEGIN
             gc_we => hessian_grad_c_0_ram_2_we
         );
 
-    hessian_grad_rr_cc_rdy <= '1';
+    hessian_grad_rr_cc_ram_0_a_re <= '1';
+    hessian_grad_rr_cc_ram_0_b_re <= '1';
+    hessian_grad_rr_cc_ram_2_a_re <= '1';
+    hessian_grad_rr_cc_ram_2_b_re <= '1';
+    hessian_grad_rr_cc : ENTITY work.hessian_grad_rr_cc
+        PORT MAP(
+            clk => core_clk,
+            rst => '0',
+            start => hessian_grad_rr_cc_trg,
+            done => hessian_grad_rr_cc_rdy,
+            gr0_addr => hessian_grad_rr_cc_ram_0_a_addr,
+            gr0_dout => ram_0_dout_a,
+            gr1_addr => hessian_grad_rr_cc_ram_0_b_addr,
+            gr1_dout => ram_0_dout_b,
+            gc0_addr => hessian_grad_rr_cc_ram_2_a_addr,
+            gc0_dout => ram_2_dout_a,
+            gc1_addr => hessian_grad_rr_cc_ram_2_b_addr,
+            gc1_dout => ram_2_dout_b,
+            rr_p_cc_addr => hessian_grad_rr_cc_ram_1_addr,
+            rr_p_cc_din => hessian_grad_rr_cc_ram_1_d,
+            rr_p_cc_we => hessian_grad_rr_cc_ram_1_we,
+            rr_m_cc_addr => hessian_grad_rr_cc_ram_3_addr,
+            rr_m_cc_din => hessian_grad_rr_cc_ram_3_d,
+            rr_m_cc_we => hessian_grad_rr_cc_ram_3_we
+        );
+
     hessian_grad_c_1_rdy <= '1';
     hessian_output_rdy <= '1';
 
@@ -601,8 +641,8 @@ BEGIN
             addr_a_1 => (OTHERS => '0'),
             din_a_1 => (OTHERS => '0'),
             we_a_2 => '0',
-            re_a_2 => '0',
-            addr_a_2 => (OTHERS => '0'),
+            re_a_2 => hessian_grad_rr_cc_ram_0_a_re,
+            addr_a_2 => hessian_grad_rr_cc_ram_0_a_addr,
             din_a_2 => (OTHERS => '0'),
             we_a_3 => '0',
             re_a_3 => '0',
@@ -624,8 +664,8 @@ BEGIN
             addr_b_2 => (OTHERS => '0'),
             din_b_2 => (OTHERS => '0'),
             we_b_3 => '0',
-            re_b_3 => '0',
-            addr_b_3 => (OTHERS => '0'),
+            re_b_3 => hessian_grad_rr_cc_ram_0_b_re,
+            addr_b_3 => hessian_grad_rr_cc_ram_0_b_addr,
             din_b_3 => (OTHERS => '0'),
             dout_b => ram_0_dout_b
         );
@@ -666,10 +706,10 @@ BEGIN
             re_b_1 => hessian_grad_r_ram_1_b_re,
             addr_b_1 => hessian_grad_r_ram_1_b_addr,
             din_b_1 => (OTHERS => '0'),
-            we_b_2 => '0',
+            we_b_2 => hessian_grad_rr_cc_ram_1_we,
             re_b_2 => '0',
-            addr_b_2 => (OTHERS => '0'),
-            din_b_2 => (OTHERS => '0'),
+            addr_b_2 => hessian_grad_rr_cc_ram_1_addr,
+            din_b_2 => hessian_grad_rr_cc_ram_1_d,
             we_b_3 => '0',
             re_b_3 => hessian_grad_c_0_ram_1_b_re,
             addr_b_3 => hessian_grad_c_0_ram_1_b_addr,
@@ -691,8 +731,8 @@ BEGIN
             addr_a_0 => (OTHERS => '0'),
             din_a_0 => (OTHERS => '0'),
             we_a_1 => '0',
-            re_a_1 => '0',
-            addr_a_1 => (OTHERS => '0'),
+            re_a_1 => hessian_grad_rr_cc_ram_2_a_re,
+            addr_a_1 => hessian_grad_rr_cc_ram_2_a_addr,
             din_a_1 => (OTHERS => '0'),
             we_a_2 => hessian_grad_c_0_ram_2_we,
             re_a_2 => '0',
@@ -706,8 +746,8 @@ BEGIN
             clk_b => core_clk,
             sel_b => hessian_ram_2_b_user,
             we_b_0 => '0',
-            re_b_0 => '0',
-            addr_b_0 => (OTHERS => '0'),
+            re_b_0 => hessian_grad_rr_cc_ram_2_b_re,
+            addr_b_0 => hessian_grad_rr_cc_ram_2_b_addr,
             din_b_0 => (OTHERS => '0'),
             we_b_1 => '0',
             re_b_1 => '0',
@@ -722,6 +762,27 @@ BEGIN
             addr_b_3 => (OTHERS => '0'),
             din_b_3 => (OTHERS => '0'),
             dout_b => ram_2_dout_b
+        );
+
+    bram_hessian_3 : ENTITY work.bram_tdp
+        GENERIC MAP(
+            DATA_WIDTH => 16,
+            DATA_LEN => constants.HESSIAN_OUTPUT_X * constants.HESSIAN_OUTPUT_Y,
+            ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
+        )
+        PORT MAP(
+            clk_a => core_clk,
+            ce_a => '1',
+            we_a => hessian_grad_rr_cc_ram_3_we,
+            addr_a => hessian_grad_rr_cc_ram_3_addr,
+            din_a => hessian_grad_rr_cc_ram_3_d,
+            dout_a => OPEN,
+            clk_b => core_clk,
+            ce_b => '1',
+            we_b => '0',
+            addr_b => (OTHERS => '0'),
+            din_b => (OTHERS => '0'),
+            dout_b => OPEN
         );
 
     -- swap together with camera, but always point to different ram
