@@ -596,6 +596,10 @@ if __name__ == "__main__":
 
     hessian_output(ram_hessian_1, ram_hessian_3, ram_hessian_2, ram_hessian_0)
     write_ram_mem_file("stage10_hessian_output", ram_hessian_0)
+    write_ram_mem_file(
+        "vga_quantized_output",
+        np.array([(v >> 6) & 0b11 for v in ram_hessian_0], dtype=np.uint8),
+    )
 
     plt.subplot(3, 3, 9)
     plt.title("After Hessian")

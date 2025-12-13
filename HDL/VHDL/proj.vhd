@@ -177,6 +177,13 @@ ARCHITECTURE arch OF proj IS
     SIGNAL hessian_grad_c_1_ram_2_we : STD_LOGIC;
     SIGNAL hessian_grad_c_1_ram_2_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
     SIGNAL hessian_grad_c_1_ram_2_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
+    --- hessian_output
+    SIGNAL hessian_output_ram_1_re : STD_LOGIC;
+    SIGNAL hessian_output_ram_1_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_ram_2_re : STD_LOGIC;
+    SIGNAL hessian_output_ram_2_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_ram_3_addr : STD_LOGIC_VECTOR(constants.HESSIAN_OUTPUT_ADDR_BITS - 1 DOWNTO 0);
+    SIGNAL hessian_output_ram_3_d : STD_LOGIC_VECTOR(15 DOWNTO 0);
     --- shared outputs of bram_hessian_0/1/2
     SIGNAL ram_0_dout_a : STD_LOGIC_VECTOR(15 DOWNTO 0);
     SIGNAL ram_0_dout_b : STD_LOGIC_VECTOR(15 DOWNTO 0);
@@ -643,7 +650,23 @@ BEGIN
             gc_we => hessian_grad_c_1_ram_2_we
         );
 
-    hessian_output_rdy <= '1';
+    hessian_output_ram_1_re <= '1';
+    hessian_output_ram_2_re <= '1';
+    hessian_output : ENTITY work.hessian_output
+        PORT MAP(
+            clk => core_clk,
+            trg => hessian_output_trg,
+            rdy => hessian_output_rdy,
+            rrp_addr => hessian_output_ram_1_addr,
+            rrp_dout => ram_1_dout_a,
+            rrm_addr => hessian_output_ram_3_addr,
+            rrm_dout => hessian_output_ram_3_d,
+            rc_addr => hessian_output_ram_2_addr,
+            rc_dout => ram_2_dout_a,
+            out_addr => hessian_output_addr,
+            out_din => hessian_output_d,
+            out_we => hessian_output_we
+        );
 
     bram_hessian_0 : ENTITY work.bram_multi_rw
         GENERIC MAP(
@@ -710,8 +733,8 @@ BEGIN
             addr_a_1 => hessian_grad_c_0_ram_1_a_addr,
             din_a_1 => (OTHERS => '0'),
             we_a_2 => '0',
-            re_a_2 => '0',
-            addr_a_2 => (OTHERS => '0'),
+            re_a_2 => hessian_output_ram_1_re,
+            addr_a_2 => hessian_output_ram_1_addr,
             din_a_2 => (OTHERS => '0'),
             we_a_3 => '0',
             re_a_3 => '0',
@@ -761,8 +784,8 @@ BEGIN
             addr_a_2 => hessian_grad_c_0_ram_2_addr,
             din_a_2 => hessian_grad_c_0_ram_2_d,
             we_a_3 => '0',
-            re_a_3 => '0',
-            addr_a_3 => (OTHERS => '0'),
+            re_a_3 => hessian_output_ram_2_re,
+            addr_a_3 => hessian_output_ram_2_addr,
             din_a_3 => (OTHERS => '0'),
             dout_a => ram_2_dout_a,
             clk_b => core_clk,
@@ -802,12 +825,12 @@ BEGIN
             clk_b => core_clk,
             ce_b => '1',
             we_b => '0',
-            addr_b => (OTHERS => '0'),
+            addr_b => hessian_output_ram_3_addr,
             din_b => (OTHERS => '0'),
-            dout_b => OPEN
+            dout_b => hessian_output_ram_3_d
         );
 
-    -- swap together with camera, but always point to different ram
+    -- swap together with vga, but always point to different ram
     hessian_output_ram_swap_trg <= vga_swap_trg_from_core;
     hessian_output_ram_swapper : ENTITY work.bram_swapper_w
         GENERIC MAP(
@@ -836,7 +859,7 @@ BEGIN
             ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
         )
         PORT MAP(
-            clk_a => cam_pclk,
+            clk_a => core_clk,
             ce_a => '1',
             we_a => hessian_output_ram_we_0,
             addr_a => hessian_output_ram_addr_0,
@@ -856,7 +879,7 @@ BEGIN
             ADDR_WIDTH => constants.HESSIAN_OUTPUT_ADDR_BITS
         )
         PORT MAP(
-            clk_a => cam_pclk,
+            clk_a => core_clk,
             ce_a => '1',
             we_a => hessian_output_ram_we_1,
             addr_a => hessian_output_ram_addr_1,
