@@ -338,7 +338,7 @@ BEGIN
 
             WHILE TRUE LOOP
                 px_idx := 0;
-                frame_interval_cnt := 250000;
+                frame_interval_cnt := 1000;
 
                 WHILE px_idx /= constants.INPUT_X * constants.INPUT_Y LOOP
                     WAIT UNTIL rising_edge(cam_pclk);
