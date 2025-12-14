@@ -50,11 +50,11 @@ BEGIN
 
     PROCESS
     BEGIN
-        -- 240 MHz
+        -- 36 MHz
         core_clk <= '0';
-        WAIT FOR 2.08 ns;
+        WAIT FOR 13.89 ns;
         core_clk <= '1';
-        WAIT FOR 2.08 ns;
+        WAIT FOR 13.89 ns;
     END PROCESS;
     PROCESS
     BEGIN

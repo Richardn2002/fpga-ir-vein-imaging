@@ -9,7 +9,7 @@ ENTITY cmt IS
 		cam_xclk : OUT STD_LOGIC; -- 24 MHz clock input to camera
 		cam_ctrl_clk : OUT STD_LOGIC; -- 12 MHz clock input to camera control
 		vga_clk : OUT STD_LOGIC; -- 25.153 MHz clock input to VGA module
-		core_clk : OUT STD_LOGIC -- 240 MHz core clock
+		core_clk : OUT STD_LOGIC -- 36 MHz core clock
 	);
 END cmt;
 
@@ -40,7 +40,7 @@ BEGIN
 		-- Divide amount for each CLKOUT (1-128)
 		CLKOUT1_DIVIDE => 30, -- 720 / 30 = 24 to camera
 		CLKOUT2_DIVIDE => 60, -- 720 / 60 = 12 to camera control
-		CLKOUT3_DIVIDE => 3, -- 720 / 3 = 240 to core
+		CLKOUT3_DIVIDE => 20, -- 720 / 20 = 36 to core
 		CLKOUT4_DIVIDE => 1,
 		CLKOUT5_DIVIDE => 1,
 		CLKOUT6_DIVIDE => 1,
