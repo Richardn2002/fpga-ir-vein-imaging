@@ -40,7 +40,10 @@ ARCHITECTURE rtl OF HESSIAN_conv_r IS
         DONE
     );
 
-    SIGNAL state, state_next : state_t;
+    SIGNAL state : state_t := IDLE;
+    SIGNAL state_next : state_t;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF state : SIGNAL IS "power_on_state";
 
     SIGNAL x, x_next : INTEGER RANGE 0 TO OUT_X - 1;
     SIGNAL y, y_next : INTEGER RANGE 0 TO OUT_Y - 1;

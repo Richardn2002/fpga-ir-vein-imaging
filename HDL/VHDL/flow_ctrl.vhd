@@ -102,6 +102,8 @@ ARCHITECTURE arch OF flow_ctrl IS
     );
     SIGNAL s : s_type := WAIT_FOR_FRAME;
     SIGNAL s_next : s_type;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF s : SIGNAL IS "power_on_state";
 
     SIGNAL cam_ram_swap_trg_next : STD_LOGIC;
     SIGNAL vga_ram_swap_trg_next : STD_LOGIC;

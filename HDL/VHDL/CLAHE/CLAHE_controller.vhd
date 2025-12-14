@@ -28,6 +28,8 @@ ARCHITECTURE arch OF CLAHE_controller IS
     -- State machine
     TYPE ctrl_state_type IS (CTRL_IDLE, CTRL_PROCESSING, CTRL_WAIT, CTRL_DONE);
     SIGNAL ctrl_state : ctrl_state_type := CTRL_IDLE;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF ctrl_state : SIGNAL IS "power_on_state";
 
     SIGNAL current_patch : INTEGER RANGE 0 TO 15 := 0;
 

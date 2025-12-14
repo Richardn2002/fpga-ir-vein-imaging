@@ -53,7 +53,11 @@ ARCHITECTURE rtl OF CLAHE_output IS
         DONE
     );
 
-    signal state, state_next : state_t;
+    signal state: state_t := IDLE;
+    signal state_next : state_t;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF state : SIGNAL IS "power_on_state";
+        
     signal x, x_next : integer range 0 to OUT_X - 1;
     signal y, y_next : integer range 0 to OUT_Y - 1;
 

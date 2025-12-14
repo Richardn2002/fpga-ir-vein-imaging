@@ -22,6 +22,8 @@ ARCHITECTURE arch OF cam_ov7670_ctrl IS
     TYPE s_type IS (START, START_DELAY, REG_RST, REG_RST_WAIT, CONFIG, CONFIG_WAIT, DONE);
     SIGNAL s : s_type := START;
     SIGNAL s_next : s_type;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF s : SIGNAL IS "power_on_state";
 
     -- delay counter
     CONSTANT TICKS_1_MS : NATURAL := 12000;

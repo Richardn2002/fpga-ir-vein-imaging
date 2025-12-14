@@ -27,6 +27,8 @@ ARCHITECTURE arch OF cam_test_pattern IS
     TYPE s_type IS (IDLE, WRITING, WRITE_LAST);
     SIGNAL s : s_type := IDLE;
     SIGNAL s_next : s_type;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF s : SIGNAL IS "power_on_state";
 
     SIGNAL rdy_next : STD_LOGIC;
 

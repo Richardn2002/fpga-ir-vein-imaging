@@ -47,6 +47,8 @@ ARCHITECTURE arch OF i2c_write_master IS
     );
     SIGNAL s : s_type := IDLE;
     SIGNAL s_next : s_type;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF s : SIGNAL IS "power_on_state";
 
     SIGNAL rdy_state : BOOLEAN;
     SIGNAL rdy_state_next : BOOLEAN;

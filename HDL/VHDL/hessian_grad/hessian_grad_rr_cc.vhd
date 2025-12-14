@@ -32,6 +32,9 @@ END hessian_grad_rr_cc;
 ARCHITECTURE Behavioral OF hessian_grad_rr_cc IS
     TYPE state_type IS (IDLE, PREPARE, WAIT_READ, COMPUTE, WRITE_OUTPUT, FINISHED);
     SIGNAL state : state_type := IDLE;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF state : SIGNAL IS "power_on_state";
+
     SIGNAL y_cnt : INTEGER RANGE 0 TO HESSIAN_OUTPUT_Y := 0;
     SIGNAL x_cnt : INTEGER RANGE 0 TO HESSIAN_OUTPUT_X := 0;
     SIGNAL rr_p_cc_term_out, rr_m_cc_term_out : signed(15 DOWNTO 0);

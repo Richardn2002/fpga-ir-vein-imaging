@@ -32,6 +32,8 @@ ARCHITECTURE rtl OF hessian_output IS
 
     TYPE state_t IS (IDLE, ISSUE_RD, WAIT_RD, COMPUTE, WRITE, DONE);
     SIGNAL state : state_t := IDLE;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF state : SIGNAL IS "power_on_state";
 
     -- address / pixel index
     SIGNAL idx : INTEGER RANGE 0 TO N - 1 := 0;

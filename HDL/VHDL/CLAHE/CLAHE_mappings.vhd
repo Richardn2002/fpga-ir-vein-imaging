@@ -52,7 +52,10 @@ ARCHITECTURE arch OF CLAHE_mappings IS
         WRITE_MAPPING,
         DONE
     );
-    SIGNAL state, state_next : state_type;
+    SIGNAL state : state_type := IDLE;
+    SIGNAL state_next : state_type;
+    ATTRIBUTE fsm_safe_state : STRING;
+    ATTRIBUTE fsm_safe_state OF state : SIGNAL IS "power_on_state";
 
     SIGNAL x_coord, x_coord_next : unsigned(4 DOWNTO 0);
     SIGNAL y_coord, y_coord_next : unsigned(4 DOWNTO 0);

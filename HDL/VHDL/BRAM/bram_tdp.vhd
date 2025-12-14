@@ -30,7 +30,7 @@ ARCHITECTURE arch OF bram_tdp IS
     -- SHARED VARIABLE according to https://docs.amd.com/r/en-US/ug901-vivado-synthesis/Dual-Port-Block-RAM-with-Two-Write-Ports-in-Read-First-Mode-VHDL
     SHARED VARIABLE ram_array : ram_type;
 BEGIN
-    PROCESS (clk_a)
+    PROCESS (clk_a, ce_a)
     BEGIN
         IF rising_edge(clk_a) AND ce_a = '1' THEN
             -- read out old value first, otherwise the BRAM internal output registers can not be inferred
@@ -41,7 +41,7 @@ BEGIN
         END IF;
     END PROCESS;
 
-    PROCESS (clk_b)
+    PROCESS (clk_b, ce_b)
     BEGIN
         IF rising_edge(clk_b) AND ce_b = '1' THEN
             dout_b <= ram_array(to_integer(unsigned(addr_b)));
